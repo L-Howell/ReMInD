@@ -4,10 +4,12 @@
 ```
 remind/
 ├── src/
-│   ├── ReMInD_Lite_v2.27.py     # Main application
-│   ├── CZI_MetadataGUI.py       # Zeiss CZI metadata extraction
-│   ├── LIF_MetadataGUI.py       # Leica LIF metadata extraction
-│   └── Nd2_v2a.py               # Nikon ND2 metadata extraction
+│   ├── ReMInD_Lite_v2.3.py     # Main application
+│   ├── metadata_extractors/
+│   │   ├── CZI_MetadataGUI.py   # Zeiss CZI metadata extraction
+│   │   ├── LIF_MetadataGUI.py   # Leica LIF metadata extraction
+│   │   ├── Nd2_v2a.py           # Nikon ND2 metadata extraction
+│   │   └── OIR_MetadataGUI.py   # Olympus/Evident OIR metadata extraction
 ├── docs/                        # Documentation
 ├── templates/                   # Example templates
 └── examples/                    # Sample outputs
@@ -16,7 +18,7 @@ remind/
 ## Development Setup
 
 ### Prerequisites
-- Python 3.7+
+- Python 3.12+
 - Git
 
 ### Installation
@@ -28,7 +30,7 @@ pip install -r requirements.txt
 
 ### Running from Source
 ```bash
-python src/ReMInD_Lite_v2.27.py
+python src/ReMInD_Lite_v2.3.py
 ```
 
 ## Architecture Overview
@@ -48,6 +50,7 @@ python src/ReMInD_Lite_v2.27.py
 - **CZI_MetadataGUI.py** - Handles Zeiss CZI files using `czifile` library
 - **LIF_MetadataGUI.py** - Handles Leica LIF files using `readlif` library  
 - **Nd2_v2a.py** - Handles Nikon ND2 files using `nd2` library
+- **OIR_MetadataGUI.py** - Handles Olympus/Evident OIR files using `oirfile` library
 
 #### ToolTip Class
 - **Purpose**: Provides hover help text for form fields
@@ -83,6 +86,8 @@ def load_fields_from_image(self):
         metadata_output = extract_lif_metadata(path)[0]
     elif ext == ".nd2":
         metadata_output = extract_nd2_metadata(path)
+    elif ext == ".oir":
+        metadata_output, _ = extract_oir_metadata(path)
     
     # 4. Map to form fields
     # 5. Display in metadata panel
@@ -107,7 +112,7 @@ def extract_new_metadata(file_path):
 
 2. **Add to main application**:
 ```python
-# In ReMInD_Lite_v2.27.py
+# In ReMInD_Lite_v2.3.py
 from NEW_MetadataGUI import extract_new_metadata
 
 # In load_fields_from_image():
@@ -181,14 +186,15 @@ elif label == "Special Field":
 pip install pyinstaller
 
 # Basic build
-pyinstaller --onefile --windowed src/ReMInD_Lite_v2.27.py
+pyinstaller --onefile --windowed src/ReMInD_Lite_v2.3.py
 
 # Advanced build with dependencies
-pyinstaller --onefile --windowed --name "ReMInD_Lite_v2.27" \
-    --add-data "src/CZI_MetadataGUI.py;." \
-    --add-data "src/LIF_MetadataGUI.py;." \
-    --add-data "src/Nd2_v2a.py;." \
-    src/ReMInD_Lite_v2.27.py
+pyinstaller --onefile --windowed --name "ReMInD_Lite_v2.3" \
+    --add-data "src/metadata_extractors/CZI_MetadataGUI.py;." \
+    --add-data "src/metadata_extractors/LIF_MetadataGUI.py;." \
+    --add-data "src/metadata_extractors/Nd2_v2a.py;." \
+    --add-data "src/metadata_extractors/OIR_MetadataGUI.py;." \
+    src/ReMInD_Lite_v2.3.py
 ```
 
 ### Build Script
@@ -196,8 +202,8 @@ Create `build.bat`:
 ```batch
 @echo off
 echo Building ReMInD Lite...
-pip install pyinstaller czifile readlif nd2
-pyinstaller --onefile --windowed --name "ReMInD_Lite_v2.27" src/ReMInD_Lite_v2.27.py
+pip install pyinstaller czifile readlif nd2 oirfile
+pyinstaller --onefile --windowed --name "ReMInD_Lite_v2.3" src/ReMInD_Lite_v2.3.py
 echo Build complete! Check dist/ folder.
 pause
 ```
@@ -208,7 +214,7 @@ pause
 - [ ] Application launches without errors
 - [ ] All form fields accept input
 - [ ] Template loading works
-- [ ] Metadata extraction for each format (CZI, LIF, ND2)
+- [ ] Metadata extraction for each format (CZI, LIF, ND2, OIR)
 - [ ] ReadMe.txt generation
 - [ ] JSON export
 - [ ] File loading and form population
@@ -303,6 +309,12 @@ Extract metadata from ND2 files.
 - **Returns**: Metadata dictionary
 - **Raises**: Exception if extraction fails
 
+#### extract_oir_metadata(file_path)
+Extract metadata from Olympus/Evident OIR files.
+- **Parameters**: `file_path` (str) - Path to OIR file
+- **Returns**: `(metadata_dict, raw_attrs)` tuple
+- **Raises**: Exception if extraction fails
+
 ### Utility Functions
 
 #### map_nd2_to_remind_fields(metadata_dict)
@@ -331,6 +343,7 @@ Map ND2 metadata to ReMInD form fields.
 - **czifile** - Zeiss CZI file reading
 - **readlif** - Leica LIF file reading
 - **nd2** - Nikon ND2 file reading
+- **oirfile** - Olympus/Evident OIR file reading
 
 ### Development Dependencies
 - **pyinstaller** - Executable building

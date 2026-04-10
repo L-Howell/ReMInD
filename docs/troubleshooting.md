@@ -7,7 +7,7 @@
 #### "Python not found" error
 **Problem**: Error when running from source
 **Solution**: 
-1. Install Python 3.7+ from python.org
+1. Install Python 3.12+ from python.org
 2. Ensure Python is added to system PATH
 3. Try `python3` instead of `python` on Linux/Mac
 
@@ -57,6 +57,17 @@
 1. Open in NIS-Elements first to verify
 2. Try "Save As" to create new ND2
 3. Check ND2 isn't password protected
+
+#### "Failed to extract OIR metadata"
+**Possible Causes**:
+- OIR file created by an unsupported cellSens version
+- Incomplete file transfer or partial write
+- File permissions issue
+
+**Solutions**:
+1. Open in cellSens/OlyVIA software first to verify integrity, re-save and try again
+2. Copy file to local drive (not network location)
+3. Check file size — very small files may be incomplete or corrupted 
 
 #### No metadata appears after extraction
 **Problem**: Extraction succeeds but fields remain empty
@@ -165,7 +176,7 @@
 
 ### "Unsupported file format"
 **Meaning**: File type not supported for metadata extraction
-**Action**: Convert to supported format (CZI/LIF/ND2) or enter manually
+**Action**: Convert to supported format (CZI/LIF/ND2/OIR) or enter manually
 
 ### "Permission denied"
 **Meaning**: Can't write to selected location
@@ -245,7 +256,8 @@ For multiple files:
 ## Known Limitations
 
 ### File Format Support
-- Only CZI, LIF, and ND2 formats supported for auto-extraction
+- Only CZI, LIF, ND2, and OIR formats supported for auto-extraction
+- oirfile (dependency for OIR metadata extraction) is in the early stages of development - functionality not guaranteed
 - Some very old format versions may not work
 - Encrypted or password-protected files not supported
 

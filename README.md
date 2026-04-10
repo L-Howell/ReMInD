@@ -1,7 +1,7 @@
 # ReMInD
 # 🧬 Recommended Metadata Interface for Documentation
 
-**Version**: 2.27 (Full & Lite)  
+**Version**: 2.27 (Full), 2.3 (Lite)  
 **Author**: Dr Nicholas Condon (n.condon@uq.edu.au)  
 **Affiliation**: Institute for Molecular Bioscience (IMB) Microscopy Facility, The University of Queensland  
 **Date**: June 2025
@@ -31,6 +31,7 @@ The tool is especially useful for users of light microscopy and other imaging sy
   - **CZI files** (Zeiss) - acquisition settings, microscope info, channels
   - **LIF files** (Leica) - system details, imaging parameters
   - **ND2 files** (Nikon) - experimental setup, time series, Z-stacks
+  - **OIR files** (Olympus/Evident) - acquisition settings, channels, objectives
 - **Smart field mapping** - automatically populates relevant form fields
 - **Raw metadata display** - view complete extracted metadata
 - **Round-trip compatibility** - reload metadata when opening saved ReadME files
@@ -40,6 +41,7 @@ The tool is especially useful for users of light microscopy and other imaging sy
 - **Scrollable interface** for low-resolution displays
 - **Scalable fonts** (A+/A- buttons)
 - **Two-row button layout** for narrow screens
+- **Dark/light mode toggle** with Windows title bar theming
 
 ### UQ RDM Integration (Full Version)
 - **UQ InstGateway connectivity** - automatic detection of available RDM projects
@@ -50,12 +52,15 @@ The tool is especially useful for users of light microscopy and other imaging sy
 
 ## 🖥️ Requirements*
 
-- **Python** 3.7+
+- **Python** 3.12+
 - **Tkinter** (included with most Python installations)
 - **Additional libraries** for metadata extraction:
   - `czifile` - for Zeiss CZI files [link](https://github.com/cgohlke/czifile)
   - `readlif` - for Leica LIF files [link](https://github.com/Arcadia-Science/readlif)
   - `nd2` - for Nikon ND2 files [link](https://github.com/tlambert03/nd2)
+  - `oirfile` - for Olympus/Evident OIR files [link](https://github.com/cgohlke/oirfile)
+  - `sv-ttk` *(optional)* - dark/light theme for ttk widgets
+  - `pywinstyles` *(optional)* - Windows title bar colour theming
 
 *Only needed for editing and testing the Python code
 
@@ -63,12 +68,12 @@ The tool is especially useful for users of light microscopy and other imaging sy
 
 ## 📁 Versions Available
 
-### ReMInD Full (Remind_v2.27.py)
+### ReMInD Full (ReMInD_v2.27.py)
 - Complete feature set including RDM connectivity
 - UQ InstGateway integration for institutional users
 - Recommended for University of Queensland researchers
 
-### ReMInD Lite (Remind_Lite_V2.27.py)  
+### ReMInD Lite (ReMInD_Lite_v2.3.py)
 - Streamlined version without RDM connectivity
 - All metadata extraction features included
 - Suitable for general use and other institutions
@@ -83,9 +88,9 @@ The tool is especially useful for users of light microscopy and other imaging sy
    ```
 2.  Place the python file into its own directory with no spaces
 3.  In Command Prompt navigate to this directory with the script
-4.  Run the following command replacing <scriptname> with your own (or e.g. Remind_v2.27.py)
+4.  Run the following command replacing `<scriptname>` with your own (e.g. `ReMInD_Lite_v2.3.py`)
    ```bash
-   pyinstaller --onefile --windowed --name "executablename" --add-data "CZI_MetadataGUI.py;." --add-data "LIF_MetadataGUI.py;." --add-data "ND2_v2a.py;." <scriptname>.py
+   pyinstaller --onefile --windowed --name "executablename" --add-data "metadata_extractors;metadata_extractors" <scriptname>.py
    ```
 5.  Your single executable will be within the dist directory that was created.
 

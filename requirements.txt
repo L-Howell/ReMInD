@@ -1,3 +1,6 @@
 czifile>=2019.1.1
 readlif>=0.6.4
 nd2>=0.5.0
+oirfile>=2024.1.1
+sv-ttk>=2.6.0      # optional: enables polished dark/light theme for ttk widgets
+pywinstyles>=1.8   # optional: syncs the Windows title bar colour to the app theme

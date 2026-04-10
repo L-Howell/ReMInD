@@ -25,14 +25,14 @@ cd remind
 pip install -r requirements.txt
 
 # Run the application
-python src/ReMInD_Lite_v2.27.py
+python src/ReMInD_Lite_v2.3.py
 ```
 *Note if running the full version `python src/ReMInD_v2.27.py`
 
 ## Quick Start
 
 1. **Launch ReMInD** - Double-click the executable or run from source
-2. **Load metadata** (optional) - Click "Load Fields from Image File" to extract metadata from CZI/LIF/ND2 files
+2. **Load metadata** (optional) - Click "Load Fields from Image File" to extract metadata from CZI/LIF/ND2/OIR files
 3. **Fill the form** - Complete relevant fields (not all required)
 4. **Generate ReadMe** - Save as `<ProjName>_ReadMe.txt` alongside your data
 
