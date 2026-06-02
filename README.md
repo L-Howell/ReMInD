@@ -27,6 +27,7 @@ The tool is especially useful for users of light microscopy and other imaging sy
 - **GUI-based metadata form** with tooltips for each field  
 - **Controlled vocabulary dropdowns** (e.g. microscope type, immersion media)  
 - **Timestamp insertion** in Notes field
+- **Filename Key table** - map a keyword in your file names to the biological group/treatment it identifies (add as many rows as needed)
 - **Template system** for pre-filling common fields
 - **Load existing ReadME.txt** files to edit and update metadata
 - **Export to multiple formats**: human-readable `ReadME.txt` and structured JSON
@@ -37,7 +38,9 @@ The tool is especially useful for users of light microscopy and other imaging sy
   - **LIF files** (Leica) - system details, imaging parameters
   - **ND2 files** (Nikon) - experimental setup, time series, Z-stacks
   - **OIR files** (Olympus/Evident) - acquisition settings, channels, objectives
+  - **OME-TIFF files** - reads embedded OME-XML (objective, channels, pixel sizes)
 - **Smart field mapping** - automatically populates relevant form fields
+- **Representative metadata for container formats** - multi-image files (e.g. LIF, multi-series OME-TIFF) use the most common value per field rather than the first image
 - **Raw metadata display** - view complete extracted metadata
 - **Round-trip compatibility** - reload metadata when opening saved ReadME files
 
@@ -59,6 +62,7 @@ The tool is especially useful for users of light microscopy and other imaging sy
   - `readlif` - for Leica LIF files [link](https://github.com/Arcadia-Science/readlif)
   - `nd2` - for Nikon ND2 files [link](https://github.com/tlambert03/nd2)
   - `oirfile` - for Olympus/Evident OIR files [link](https://github.com/cgohlke/oirfile)
+  - `ome-types` - for OME-TIFF files [link](https://github.com/tlambert03/ome-types)
   - `sv-ttk` *(optional)* - dark/light theme for ttk widgets
   - `pywinstyles` *(optional)* - Windows title bar colour theming
 

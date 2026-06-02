@@ -166,17 +166,13 @@
 
 ## Error Messages
 
-### "Could not access the network location"
-**Meaning**: RDM connectivity check failed
-**Action**: Enter RDM information manually in text field
-
 ### "No images found in LIF file"
 **Meaning**: LIF file doesn't contain recognizable image series
 **Action**: Check file in LAS X software, may be corrupted
 
 ### "Unsupported file format"
 **Meaning**: File type not supported for metadata extraction
-**Action**: Convert to supported format (CZI/LIF/ND2/OIR) or enter manually
+**Action**: Convert to supported format (CZI/LIF/ND2/OIR/OME-TIFF) or enter manually
 
 ### "Permission denied"
 **Meaning**: Can't write to selected location
@@ -256,7 +252,8 @@ For multiple files:
 ## Known Limitations
 
 ### File Format Support
-- Only CZI, LIF, ND2, and OIR formats supported for auto-extraction
+- Only CZI, LIF, ND2, OIR, and OME-TIFF formats supported for auto-extraction
+- Plain (non-OME) TIFFs are not supported — only TIFFs with embedded OME-XML
 - oirfile (dependency for OIR metadata extraction) is in the early stages of development - functionality not guaranteed
 - Some very old format versions may not work
 - Encrypted or password-protected files not supported

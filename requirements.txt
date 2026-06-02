@@ -2,5 +2,6 @@ pylibCZIrw>=4.0.0   # Zeiss CZI files (imported by CZI_MetadataGUI)
 readlif>=0.6.4
 nd2>=0.5.0
 oirfile>=2024.1.1
+ome-types>=0.5.0    # OME-TIFF files (reads embedded OME-XML)
 sv-ttk>=2.6.0      # optional: enables polished dark/light theme for ttk widgets
 pywinstyles>=1.8   # optional: syncs the Windows title bar colour to the app theme

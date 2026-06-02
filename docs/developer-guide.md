@@ -4,15 +4,17 @@
 ```
 remind/
 ├── src/
-│   ├── remind.py               # Main application
+│   ├── remind.py                  # Main application
 │   ├── metadata_extractors/
-│   │   ├── CZI_MetadataGUI.py   # Zeiss CZI metadata extraction
-│   │   ├── LIF_MetadataGUI.py   # Leica LIF metadata extraction
-│   │   ├── Nd2_v2a.py           # Nikon ND2 metadata extraction
-│   │   └── OIR_MetadataGUI.py   # Olympus/Evident OIR metadata extraction
-├── docs/                        # Documentation
-├── templates/                   # Example templates
-└── examples/                    # Sample outputs
+│   │   ├── CZI_MetadataGUI.py      # Zeiss CZI metadata extraction
+│   │   ├── LIF_MetadataGUI.py      # Leica LIF metadata extraction
+│   │   ├── Nd2_v2a.py              # Nikon ND2 metadata extraction
+│   │   ├── OIR_MetadataGUI.py      # Olympus/Evident OIR metadata extraction
+│   │   ├── OMETiff_MetadataGUI.py  # OME-TIFF metadata extraction
+│   │   └── _common.py              # Shared helpers (most_common_metadata)
+├── tools/                         # Developer utilities (e.g. inspect_oir.py)
+├── docs/                          # Documentation
+└── templates/                     # Example templates
 ```
 
 ## Development Setup
@@ -51,6 +53,8 @@ python src/remind.py
 - **LIF_MetadataGUI.py** - Handles Leica LIF files using `readlif` library  
 - **Nd2_v2a.py** - Handles Nikon ND2 files using `nd2` library
 - **OIR_MetadataGUI.py** - Handles Olympus/Evident OIR files using `oirfile` library
+- **OMETiff_MetadataGUI.py** - Handles OME-TIFF files using `ome-types` library
+- **_common.py** - Shared helpers, incl. `most_common_metadata()` for collapsing multi-image container formats
 
 #### ToolTip Class
 - **Purpose**: Provides hover help text for form fields
@@ -83,11 +87,14 @@ def load_fields_from_image(self):
     if ext == ".czi":
         metadata_output, _ = extract_metadata(path)
     elif ext == ".lif":
-        metadata_output = extract_lif_metadata(path)[0]
+        # Container format: collapse all series to the most common value per field
+        metadata_output = most_common_metadata(extract_lif_metadata(path))
     elif ext == ".nd2":
         metadata_output = extract_nd2_metadata(path)
     elif ext == ".oir":
         metadata_output, _ = extract_oir_metadata(path)
+    elif ext in (".tif", ".tiff"):
+        metadata_output, _ = extract_ometiff_metadata(path)
     
     # 4. Map to form fields
     # 5. Display in metadata panel
@@ -214,7 +221,8 @@ pause
 - [ ] Application launches without errors
 - [ ] All form fields accept input
 - [ ] Template loading works
-- [ ] Metadata extraction for each format (CZI, LIF, ND2, OIR)
+- [ ] Metadata extraction for each format (CZI, LIF, ND2, OIR, OME-TIFF)
+- [ ] Filename Key: add/clear rows, round-trip through ReadMe.txt and JSON
 - [ ] ReadMe.txt generation
 - [ ] JSON export
 - [ ] File loading and form population
@@ -315,12 +323,23 @@ Extract metadata from Olympus/Evident OIR files.
 - **Returns**: `(metadata_dict, raw_attrs)` tuple
 - **Raises**: Exception if extraction fails
 
+#### extract_ometiff_metadata(file_path)
+Extract metadata from OME-TIFF files (reads embedded OME-XML via `ome-types`).
+- **Parameters**: `file_path` (str) - Path to .tif/.tiff file
+- **Returns**: `(metadata_dict, ome_object)` tuple; for multi-image files the dict is the per-field most common value across images
+- **Raises**: Exception if the file contains no parseable OME-XML
+
 ### Utility Functions
 
 #### map_nd2_to_remind_fields(metadata_dict)
 Map ND2 metadata to ReMInD form fields.
 - **Parameters**: `metadata_dict` (dict) - Raw ND2 metadata
 - **Returns**: Dictionary mapping ReMInD field names to values
+
+#### most_common_metadata(dicts)
+Collapse a list of per-image metadata dicts into one, taking the most common value per key (ties favour the earliest/first image). Used for container formats (LIF, multi-image OME-TIFF).
+- **Parameters**: `dicts` (list[dict]) - one metadata dict per image/series
+- **Returns**: A single representative metadata dictionary
 
 ## Release Process
 

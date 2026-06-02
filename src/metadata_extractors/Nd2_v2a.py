@@ -245,7 +245,7 @@ def map_nd2_to_remind_fields(nd2_metadata):
     field_mapping = {
         "Experiment name": nd2_metadata.get("Experiment Name", ""),
         "Date and time": nd2_metadata.get("Document Creation Date", ""),
-        "Experimentor Name(s)": nd2_metadata.get("Document User Name", ""),
+        # Experimenter name is intentionally left for manual entry, not auto-filled.
         "Microscope name": nd2_metadata.get("System Name", ""),
         "Software": nd2_metadata.get("Software Version", ""),
         "Image format": ".nd2",

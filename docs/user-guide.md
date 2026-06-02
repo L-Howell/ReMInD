@@ -33,6 +33,21 @@ Fill in relevant fields:
 - Use dropdown menus where available
 - Choose "Other" and specify in Notes if needed
 
+### Filename Key
+
+Use the **Filename Key** table to document what the labels in your file names mean,
+instead of burying it in the Notes field:
+
+- **Filename keyword** (left): a piece of text that appears in the file names for a
+  group, e.g. `B` or `ctrl`. It **must be unique to that group** — i.e. appear only
+  in that group's file names, not in any other group's — so it unambiguously
+  identifies the condition.
+- **Group / treatment** (right): the biological condition it identifies, e.g.
+  `10 µM Drug Y` or `Vehicle control`.
+
+Two rows are shown by default; click **+ Add row** to add more. The key is written to
+both the `ReadMe.txt` and the JSON export, and is reloaded when you open a saved ReadMe.
+
 ### 2. Automatic Metadata Extraction
 
 #### Supported File Formats
@@ -40,10 +55,15 @@ Fill in relevant fields:
 - **LIF files** (Leica) - System details, imaging parameters  
 - **ND2 files** (Nikon) - Experimental setup, time series, Z-stacks
 - **OIR files** (Olympus/Evident) - Acquisition settings, channels, objectives
+- **OME-TIFF files** - Embedded OME-XML (objective, channels, pixel sizes)
+
+> For container formats that hold several images (e.g. LIF, multi-series OME-TIFF),
+> ReMInD reports the most common value for each metadata field across all images,
+> so a leading overview/thumbnail image does not skew the result.
 
 #### How to Extract Metadata
 1. Click **"Load Fields from Image File"**
-2. Select your image file (CZI, LIF, ND2, or OIR)
+2. Select your image file (CZI, LIF, ND2, OIR, or OME-TIFF)
 3. Review the automatically populated fields
 4. Check the "Extracted Image Metadata" panel
 5. Add additional experimental context as needed
@@ -132,7 +152,7 @@ Fill in relevant fields:
 
 #### "Failed to extract metadata"
 - **Cause**: Unsupported file format or corrupted file
-- **Solution**: Check file format (CZI/LIF/ND2/OIR only), try different file
+- **Solution**: Check file format (CZI/LIF/ND2/OIR/OME-TIFF only), try different file
 
 #### Template not appearing
 - **Cause**: Incorrect filename or location

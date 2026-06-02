@@ -36,6 +36,8 @@ try:
     from metadata_extractors.LIF_MetadataGUI import extract_lif_metadata
     from metadata_extractors.Nd2_v2a import extract_nd2_metadata, map_nd2_to_remind_fields
     from metadata_extractors.OIR_MetadataGUI import extract_oir_metadata
+    from metadata_extractors.OMETiff_MetadataGUI import extract_ometiff_metadata
+    from metadata_extractors._common import most_common_metadata
 except ImportError as e:
     print(f"Import error: {e}")
     print("Make sure the metadata_extractors folder contains the required files")
@@ -140,7 +142,7 @@ class REMBIGUI:
 
         self.fields = [
             ("Experiment name", "", "Title of the experiment."),
-            ("Storage Location", "", "Enter your RDM/RDS project name"),
+            ("Storage Location", "", "Where the raw data is stored, e.g. a data repository / shared drive or project name"),
             ("Date and time", "", "Date and time of acquisition. The Now button will autopopulate the fields"),
             ("Experimentor Name(s)", "", "Enter your full name."),
             ("Sample Information", "", "e.g. Sample ID, or cell line, animal strain"),
@@ -163,6 +165,8 @@ class REMBIGUI:
         ]
 
         self.build_form()
+        # Start in dark mode by default (user can switch with the toggle).
+        self.toggle_dark_mode()
         self.root.after(200, self.select_and_load_template)
 
     def check_rdm_connectivity(self):
@@ -247,6 +251,35 @@ class REMBIGUI:
 
         # Configure column weights for proper resizing
         parent.grid_columnconfigure(1, weight=1)
+
+        # --- Filename Key: map a filename keyword to a biological group/treatment ---
+        self.condition_frame = tk.LabelFrame(parent, text="Filename Key", font=self.bold_font)
+        self.condition_frame.grid(row=self.row_counter, column=0, columnspan=2, sticky="ew", padx=5, pady=(2, 8))
+        self.condition_frame.grid_columnconfigure(0, weight=1)
+        self.condition_frame.grid_columnconfigure(1, weight=1)
+        self.row_counter += 1
+
+        tk.Label(self.condition_frame,
+                 text="Link a keyword in your filenames to the group it identifies.\n"
+                      "Each keyword must be unique to one group (appear only in that group's file names).",
+                 font=self.app_font, justify="left").grid(row=0, column=0, columnspan=2, sticky="w", padx=4, pady=(2, 2))
+        tk.Label(self.condition_frame, text="Filename keyword",
+                 font=self.bold_font).grid(row=1, column=0, sticky="w", padx=6)
+        tk.Label(self.condition_frame, text="Group / treatment",
+                 font=self.bold_font).grid(row=1, column=1, sticky="w", padx=6)
+
+        self.condition_rows_frame = tk.Frame(self.condition_frame)
+        self.condition_rows_frame.grid(row=2, column=0, columnspan=2, sticky="ew", padx=2)
+        self.condition_rows_frame.grid_columnconfigure(0, weight=1)
+        self.condition_rows_frame.grid_columnconfigure(1, weight=1)
+
+        # Two empty rows by default; users add more with the + button.
+        self.condition_rows = []
+        self.add_condition_row()
+        self.add_condition_row()
+
+        tk.Button(self.condition_frame, text="+ Add row", command=self.add_condition_row,
+                  font=self.app_font).grid(row=3, column=0, sticky="w", padx=6, pady=(2, 4))
 
         # Add a scrollable, read-only text widget for metadata display
         self.metadata_frame = tk.Frame(parent)
@@ -378,6 +411,13 @@ class REMBIGUI:
             if label in self.extra_fields:
                 lines.append(f"{label} (Other): {self.extra_fields[label].get()}")
 
+        # --- Filename Key (filename keyword -> group/treatment) ---
+        condition_pairs = self.get_condition_rows()
+        if condition_pairs:
+            lines.append("\n# Filename Key")
+            for keyword, group in condition_pairs:
+                lines.append(f"{keyword}: {group}")
+
         # --- Append metadata if available ---
         if hasattr(self, "last_metadata_output") and self.last_metadata_output:
             lines.append("\n# Extracted Image Metadata")
@@ -417,6 +457,50 @@ class REMBIGUI:
         self.metadata_text.delete("1.0", tk.END)
         self.metadata_text.config(state="disabled")
 
+        # Reset the Filename Key table to two empty rows
+        self._reset_condition_rows()
+
+    def add_condition_row(self, keyword="", group=""):
+        """Append a (filename keyword -> group/treatment) row to the Filename Key table."""
+        r = len(self.condition_rows)
+        left = tk.Entry(self.condition_rows_frame, font=self.app_font)
+        right = tk.Entry(self.condition_rows_frame, font=self.app_font)
+        if keyword:
+            left.insert(0, keyword)
+        if group:
+            right.insert(0, group)
+        left.grid(row=r, column=0, sticky="ew", padx=2, pady=1)
+        right.grid(row=r, column=1, sticky="ew", padx=2, pady=1)
+        ToolTip(left, "Text that appears only in this group's file names, so it uniquely identifies the group, e.g. 'B' or 'ctrl'")
+        ToolTip(right, "What that group is, e.g. '10 uM Drug Y' or 'Vehicle control'")
+        # Match the current theme for rows added after dark mode is enabled.
+        if getattr(self, "dark_mode", False):
+            for e in (left, right):
+                e.configure(bg="#2d2d2d", fg="#ffffff", insertbackground="#ffffff")
+        self.condition_rows.append((left, right))
+        return left, right
+
+    def get_condition_rows(self):
+        """Return [(keyword, group), ...] for rows whose keyword is non-empty."""
+        pairs = []
+        for left, right in self.condition_rows:
+            keyword = left.get().strip()
+            group = right.get().strip()
+            if keyword:
+                pairs.append((keyword, group))
+        return pairs
+
+    def _reset_condition_rows(self, rows=None):
+        """Replace all Filename Key rows with the given list, padding to >= 2 rows."""
+        for left, right in self.condition_rows:
+            left.destroy()
+            right.destroy()
+        self.condition_rows = []
+        for keyword, group in (rows or []):
+            self.add_condition_row(keyword, group)
+        while len(self.condition_rows) < 2:
+            self.add_condition_row()
+
     def parse_readme_file(self, path):
         try:
             with open(path, "r", encoding="utf-8") as f:
@@ -424,17 +508,27 @@ class REMBIGUI:
 
             idx = 0
             extracted_metadata = {}  # Store extracted metadata separately
-            
+            condition_rows = []      # Filename Key (keyword -> group) rows
+
             while idx < len(lines):
                 line = lines[idx].strip()
-                if line.startswith("#") or not line:
+
+                # Section: Filename Key — read keyword: group rows until the next section
+                if line == "# Filename Key":
                     idx += 1
+                    while idx < len(lines):
+                        row_line = lines[idx].strip()
+                        if row_line.startswith("#"):
+                            break
+                        if row_line and ": " in row_line:
+                            keyword, group = row_line.split(": ", 1)
+                            condition_rows.append((keyword.strip(), group.strip()))
+                        idx += 1
                     continue
-                    
-                # Check if we've reached the "Extracted Image Metadata" section
+
+                # Section: Extracted Image Metadata — consumes the remainder of the file
                 if line == "# Extracted Image Metadata":
                     idx += 1
-                    # Parse all the metadata lines that follow
                     while idx < len(lines):
                         metadata_line = lines[idx].strip()
                         if metadata_line and ": " in metadata_line:
@@ -446,7 +540,12 @@ class REMBIGUI:
                                 extracted_metadata[key] = value
                         idx += 1
                     break  # We've processed all metadata
-                    
+
+                # Skip other comment lines and blanks
+                if line.startswith("#") or not line:
+                    idx += 1
+                    continue
+
                 # Handle multi-line fields (like Notes)
                 if line.endswith(":") and idx + 1 < len(lines) and lines[idx + 1].strip() == "---":
                     label = line[:-1].strip()
@@ -478,6 +577,9 @@ class REMBIGUI:
                     elif isinstance(widget, tk.Entry):
                         widget.delete(0, tk.END)
                         widget.insert(0, value)
+
+            # Reload the Filename Key table from the file (empty -> two blank rows)
+            self._reset_condition_rows(condition_rows)
 
             # If we found extracted metadata, reload it into the metadata panel
             if extracted_metadata:
@@ -529,19 +631,26 @@ class REMBIGUI:
         help_text.pack(expand=True, fill="both", padx=10, pady=10)
 
         help_text.insert("1.0", "📄 ReMInD - Recommended Metadata Interface for Documentation Help\n\n", "title")
-        help_text.insert("end", "This tool was created by Nicholas Condon (UQ) from IMB Microscopy in 2025.\n\n")
+        help_text.insert("end", "This tool was originally created by Nicholas Condon (IMB Microscopy, The University of Queensland) in 2025, and is now developed and maintained independently by Liam Howell (Sydney Microscopy and Microanalysis, The University of Sydney).\n\n")
         help_text.insert("end", "The purpose of this tool is to help capture additional metadata to store with your RAW experimental data.\n\n")
         
         help_text.insert("end", "✒️ Entering Information \n", "subtitle")
         help_text.insert("end", "\t• Not every field needs to be filled in.\n")
-        help_text.insert("end", "\t• If the tool can detect UQ-InstGateway then a list of available RDMs will be shown, if not connected it will warn you and allow free text input.\n")
+        help_text.insert("end", "\t• Enter where your raw data is stored (e.g. a data repository or project name) in the 'Storage Location' field.\n")
         help_text.insert("end", "\t• Hover your cursor over the text box for more description for the field.\n")
         help_text.insert("end", "\t• Some fields contain drop down lists you can choose items from, if choosing 'other' provide the information in the notes box.\n")
         help_text.insert("end", "\t• The notes box can be filled in with as much detail as possible. You can use the 'Timestamp' button to generate a new line with the date and time.\n\n")
-        
+
+        help_text.insert("end", "🔑 Filename Key \n", "subtitle")
+        help_text.insert("end", "\t• Use the 'Filename Key' table to record what the labels in your file names mean.\n")
+        help_text.insert("end", "\t• In the left box, enter a keyword that appears in the file names for a group (e.g. 'B' or 'ctrl').\n")
+        help_text.insert("end", "\t• The keyword must be unique to that group — it should appear only in that group's file names, not in any other group's.\n")
+        help_text.insert("end", "\t• In the right box, enter the matching biological group or treatment (e.g. '10 uM Drug Y' or 'Vehicle control').\n")
+        help_text.insert("end", "\t• Click '+ Add row' for as many groups as you need. The key is saved in the ReadMe.txt and JSON exports.\n\n")
+
         help_text.insert("end", "🔬 Load Fields from Image File \n", "subtitle")
         help_text.insert("end", "\t• Click 'Load Fields from Image File' to automatically extract metadata from your image files.\n")
-        help_text.insert("end", "\t• Supported formats: CZI (Zeiss), LIF (Leica), ND2 (Nikon), and OIR (Olympus/Evident) files.\n")
+        help_text.insert("end", "\t• Supported formats: CZI (Zeiss), LIF (Leica), ND2 (Nikon), OIR (Olympus/Evident), and OME-TIFF files.\n")
         help_text.insert("end", "\t• The tool will automatically populate relevant fields with metadata from the image file including:\n")
         help_text.insert("end", "\t\t- Date and time of acquisition\n")
         help_text.insert("end", "\t\t- Microscope name and settings\n")
@@ -574,7 +683,7 @@ class REMBIGUI:
         help_text.insert("end", "\t• Includes both form entries and raw extracted image metadata.\n\n")
         
         help_text.insert("end", "📌 Tips:\n", "subtitle")
-        help_text.insert("end", "\t• Use a previously generated ReadMe.txt file as a template to pre-load certain fields such as RDM Info, Name, Sample information etc.\n")
+        help_text.insert("end", "\t• Use a previously generated ReadMe.txt file as a template to pre-load certain fields such as Storage Location, Name, Sample information etc.\n")
         help_text.insert("end", "\t• If you're iterating on an experiment, consider labeling your files like ReadMe_exp1_v1.txt, v2, etc.\n")
         help_text.insert("end", "\t• Be descriptive: When entering experiment details, use full names, reagent IDs, microscope configurations, etc.\n")
         help_text.insert("end", "\t• Always load metadata from your original image files first, then supplement with additional information.\n")
@@ -583,18 +692,20 @@ class REMBIGUI:
 
         help_text.insert("end", "🙏 Acknowledgements\n", "subtitle")
         help_text.insert("end", "This tool uses several open-source libraries for metadata extraction:\n\n")
-        help_text.insert("end", "\t• czifile by Christoph Gohlke - For reading Zeiss CZI files\n")
-        help_text.insert("end", "\t\t  https://github.com/cgohlke/czifile\n\n")
+        help_text.insert("end", "\t• pylibCZIrw by ZEISS - For reading Zeiss CZI files\n")
+        help_text.insert("end", "\t\t  https://github.com/ZEISS/pylibczirw\n\n")
         help_text.insert("end", "\t• readlif by Nimesh Khadka - For reading Leica LIF files\n")
         help_text.insert("end", "\t\t  https://github.com/nimne/readlif\n\n")
         help_text.insert("end", "\t• nd2 by Talley Lambert - For reading Nikon ND2 files\n")
         help_text.insert("end", "\t\t  https://github.com/tlambert03/nd2\n\n")
         help_text.insert("end", "\t• oirfile by Christoph Gohlke - For reading Olympus/Evident OIR files\n")
         help_text.insert("end", "\t\t  https://github.com/cgohlke/oirfile\n\n")
+        help_text.insert("end", "\t• ome-types by Talley Lambert - For reading OME-TIFF files\n")
+        help_text.insert("end", "\t\t  https://github.com/tlambert03/ome-types\n\n")
         help_text.insert("end", "\t• Python standard libraries: tkinter, json, datetime, os, glob\n\n")
         help_text.insert("end", "Special thanks to the open-source community for making microscopy metadata\n")
         help_text.insert("end", "accessible and standardized across different imaging platforms.\n\n")
-        help_text.insert("end", "For support or feature requests, contact IMB Microscopy at The University of Queensland.")
+        help_text.insert("end", "For support or feature requests, please open an issue at https://github.com/L-Howell/ReMInD.")
 
         help_text.tag_configure("title", font=("Segoe UI", 12, "bold"))
         help_text.tag_configure("subtitle", font=("Segoe UI", 10, "bold"))
@@ -622,7 +733,6 @@ class REMBIGUI:
                 field_map = {
                     "Experiment name": None,  # Do not auto-fill from file name
                     "Date and time": "Document Creation Date",
-                    "Experimentor Name(s)": "Document User Name",
                     "Microscope name": "System Name",
                     "Objective": "Objective Model",
                     "Immersion": "Objective Medium",
@@ -690,12 +800,13 @@ class REMBIGUI:
                 if not metadata_list:
                     messagebox.showerror("Error", "No images found in LIF file.")
                     return
-                metadata_output = metadata_list[0]  # Use first image/series
+                # Collapse multi-series LIF to the most common metadata per field,
+                # rather than blindly taking the first (which may be an overview).
+                metadata_output = most_common_metadata(metadata_list)
                 # Map LIF metadata keys to ReMInD form fields
                 field_map = {
                     "Experiment name": None,
                     "Date and time": "Document Creation Date",
-                    "Experimentor Name(s)": "Document User Name",
                     "Microscope name": "System Name",
                     "Objective": "Objective Model",
                     "Immersion": "Objective Medium",
@@ -786,7 +897,6 @@ class REMBIGUI:
                 field_map = {
                     "Experiment name": None,
                     "Date and time": "Document Creation Date",
-                    "Experimentor Name(s)": "Document User Name",
                     "Microscope name": "System Name",
                     "Objective": "Objective Model",
                     "Immersion": "Objective Medium",
@@ -839,8 +949,67 @@ class REMBIGUI:
             except Exception as e:
                 messagebox.showerror("Error", f"Failed to extract OIR metadata:\n{e}")
 
+        elif ext in (".tif", ".tiff"):
+            try:
+                metadata_output, _ = extract_ometiff_metadata(path)
+
+                field_map = {
+                    "Experiment name": None,
+                    "Date and time": "Document Creation Date",
+                    "Microscope name": "System Name",
+                    "Objective": "Objective Model",
+                    "Immersion": "Objective Medium",
+                    "Imaging mode": "Acquisition Modes",
+                    "Channel info": "Channel Names",
+                    "Image format": None,
+                    "Notes": None,
+                }
+
+                for remind_label, ome_key in field_map.items():
+                    if ome_key is None:
+                        if remind_label == "Image format":
+                            widget = self.entries[remind_label]
+                            if isinstance(widget, tk.StringVar):
+                                widget.set(ext)
+                            else:
+                                widget.delete(0, tk.END)
+                                widget.insert(0, ext)
+                        elif remind_label == "Notes":
+                            notes_widget = self.text_fields.get("Notes")
+                            if notes_widget:
+                                notes_widget.insert(tk.END, "\n[Imported from OME-TIFF]\n")
+                        continue
+
+                    value = metadata_output.get(ome_key, "")
+                    if remind_label == "Imaging mode":
+                        if isinstance(value, list) and value:
+                            value = str(value[0])
+                        elif isinstance(value, list):
+                            value = ""
+                    elif isinstance(value, list):
+                        value = ", ".join(str(v) for v in value)
+
+                    widget = self.entries.get(remind_label)
+                    if widget is None:
+                        continue
+                    if isinstance(widget, tk.StringVar):
+                        widget.set(value)
+                    elif isinstance(widget, tk.Entry):
+                        widget.delete(0, tk.END)
+                        widget.insert(0, value)
+                    elif remind_label == "Notes" and remind_label in self.text_fields:
+                        self.text_fields[remind_label].insert(tk.END, value)
+
+                self.show_metadata_in_window(metadata_output)
+                self.last_metadata_output = metadata_output
+
+                messagebox.showinfo("Success", "Fields loaded from OME-TIFF metadata.")
+
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to extract OME-TIFF metadata:\n{e}")
+
         else:
-            messagebox.showinfo("Not Supported", "Only CZI, LIF, ND2, and OIR files are supported for metadata extraction at this time.")
+            messagebox.showinfo("Not Supported", "Only CZI, LIF, ND2, OIR and OME-TIFF files are supported for metadata extraction at this time.")
 
     def show_metadata_in_window(self, metadata_dict):
         self.metadata_text.config(state="normal")
@@ -985,6 +1154,11 @@ class REMBIGUI:
                 data[label] = self.entries[label].get()
             if label in self.extra_fields:
                 data[f"{label} (Other)"] = self.extra_fields[label].get()
+
+        # Add the Filename Key (keyword -> group/treatment) if any rows are filled
+        condition_pairs = self.get_condition_rows()
+        if condition_pairs:
+            data["Filename Key"] = [{"keyword": k, "group": g} for k, g in condition_pairs]
 
         # Add extracted metadata if available
         if hasattr(self, "last_metadata_output") and self.last_metadata_output:

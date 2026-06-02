@@ -31,7 +31,7 @@ python src/remind.py
 ## Quick Start
 
 1. **Launch ReMInD** - Double-click the executable or run from source
-2. **Load metadata** (optional) - Click "Load Fields from Image File" to extract metadata from CZI/LIF/ND2/OIR files
+2. **Load metadata** (optional) - Click "Load Fields from Image File" to extract metadata from CZI/LIF/ND2/OIR/OME-TIFF files
 3. **Fill the form** - Complete relevant fields (not all required)
 4. **Generate ReadMe** - Save as `<ProjName>_ReadMe.txt` alongside your data
 
