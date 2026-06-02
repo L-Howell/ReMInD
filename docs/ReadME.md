@@ -11,23 +11,22 @@
 ## Installation
 
 ### Option 1: Download Executable (Recommended)
-1. Go to the [Releases page](https://github.com/NickCondon/ReMInD/releases)
-2. Download the latest `ReMInD_Lite_v2.27.exe` or `ReMInD_v2.27.exe`
+1. Go to the [Releases page](https://github.com/L-Howell/ReMInD/releases)
+2. Download the latest `ReMInD.exe`
 3. Run the executable - no installation required!
 
 ### Option 2: Run from Source
 ```bash
 # Clone the repository
-git clone https://github.com/NickCondon/ReMInD.git
-cd remind
+git clone https://github.com/L-Howell/ReMInD.git
+cd ReMInD
 
 # Install dependencies
 pip install -r requirements.txt
 
 # Run the application
-python src/ReMInD_Lite_v2.3.py
+python src/remind.py
 ```
-*Note if running the full version `python src/ReMInD_v2.27.py`
 
 ## Quick Start
 

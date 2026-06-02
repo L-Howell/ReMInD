@@ -4,7 +4,7 @@
 ```
 remind/
 ├── src/
-│   ├── ReMInD_Lite_v2.3.py     # Main application
+│   ├── remind.py               # Main application
 │   ├── metadata_extractors/
 │   │   ├── CZI_MetadataGUI.py   # Zeiss CZI metadata extraction
 │   │   ├── LIF_MetadataGUI.py   # Leica LIF metadata extraction
@@ -23,14 +23,14 @@ remind/
 
 ### Installation
 ```bash
-git clone https://github.com/NickCondon/Remind.git
-cd remind
+git clone https://github.com/L-Howell/ReMInD.git
+cd ReMInD
 pip install -r requirements.txt
 ```
 
 ### Running from Source
 ```bash
-python src/ReMInD_Lite_v2.3.py
+python src/remind.py
 ```
 
 ## Architecture Overview
@@ -47,7 +47,7 @@ python src/ReMInD_Lite_v2.3.py
   - `export_as_json()` - JSON export functionality
 
 #### Metadata Extractors
-- **CZI_MetadataGUI.py** - Handles Zeiss CZI files using `czifile` library
+- **CZI_MetadataGUI.py** - Handles Zeiss CZI files using `pylibCZIrw` library
 - **LIF_MetadataGUI.py** - Handles Leica LIF files using `readlif` library  
 - **Nd2_v2a.py** - Handles Nikon ND2 files using `nd2` library
 - **OIR_MetadataGUI.py** - Handles Olympus/Evident OIR files using `oirfile` library
@@ -112,8 +112,8 @@ def extract_new_metadata(file_path):
 
 2. **Add to main application**:
 ```python
-# In ReMInD_Lite_v2.3.py
-from NEW_MetadataGUI import extract_new_metadata
+# In remind.py (import from the metadata_extractors package)
+from metadata_extractors.NEW_MetadataGUI import extract_new_metadata
 
 # In load_fields_from_image():
 elif ext == ".new":
@@ -186,24 +186,24 @@ elif label == "Special Field":
 pip install pyinstaller
 
 # Basic build
-pyinstaller --onefile --windowed src/ReMInD_Lite_v2.3.py
+pyinstaller --onefile --windowed src/remind.py
 
 # Advanced build with dependencies
-pyinstaller --onefile --windowed --name "ReMInD_Lite_v2.3" \
+pyinstaller --onefile --windowed --name "ReMInD" \
     --add-data "src/metadata_extractors/CZI_MetadataGUI.py;." \
     --add-data "src/metadata_extractors/LIF_MetadataGUI.py;." \
     --add-data "src/metadata_extractors/Nd2_v2a.py;." \
     --add-data "src/metadata_extractors/OIR_MetadataGUI.py;." \
-    src/ReMInD_Lite_v2.3.py
+    src/remind.py
 ```
 
 ### Build Script
 Create `build.bat`:
 ```batch
 @echo off
-echo Building ReMInD Lite...
-pip install pyinstaller czifile readlif nd2 oirfile
-pyinstaller --onefile --windowed --name "ReMInD_Lite_v2.3" src/ReMInD_Lite_v2.3.py
+echo Building ReMInD...
+pip install pyinstaller pylibCZIrw readlif nd2 oirfile sv-ttk pywinstyles
+pyinstaller --onefile --windowed --name "ReMInD" src/remind.py
 echo Build complete! Check dist/ folder.
 pause
 ```
@@ -340,7 +340,7 @@ Map ND2 metadata to ReMInD form fields.
 - **json** - JSON export functionality
 
 ### Metadata Dependencies
-- **czifile** - Zeiss CZI file reading
+- **pylibCZIrw** - Zeiss CZI file reading
 - **readlif** - Leica LIF file reading
 - **nd2** - Nikon ND2 file reading
 - **oirfile** - Olympus/Evident OIR file reading

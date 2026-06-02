@@ -1,3 +1,20 @@
+"""
+ReMInD - Recommended Metadata Interface for Documentation
+
+Copyright (C) 2025  Nicholas Condon (IMB Microscopy, The University of Queensland)
+Copyright (C) 2025-2026  Liam Howell (Sydney Microscopy and Microanalysis,
+                                      The University of Sydney)
+
+This program is free software: you can redistribute it and/or modify it under
+the terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version. See the LICENSE file for details.
+
+This is a derivative work. It originated from ReMInD by Nicholas Condon and has
+been modified and extended (OIR support, dark mode, single unified application),
+and is maintained independently from v3.0.0 onward by Liam Howell.
+"""
+
 import tkinter as tk
 from tkinter import filedialog, messagebox
 import tkinter.font as tkfont
@@ -18,14 +35,31 @@ try:
     from metadata_extractors.CZI_MetadataGUI import extract_metadata
     from metadata_extractors.LIF_MetadataGUI import extract_lif_metadata
     from metadata_extractors.Nd2_v2a import extract_nd2_metadata, map_nd2_to_remind_fields
+    from metadata_extractors.OIR_MetadataGUI import extract_oir_metadata
 except ImportError as e:
     print(f"Import error: {e}")
     print("Make sure the metadata_extractors folder contains the required files")
     sys.exit(1)
 
-APP_VERSION = "ReMInD Lite v2.27"
-APP_AUTHOR = "Nicholas Condon, IMB Microscopy, The University of Queensland, Brisbane Australia"
-APP_DATE = "June 2025"
+try:
+    import sv_ttk
+    _HAS_SV_TTK = True
+except ImportError:
+    _HAS_SV_TTK = False
+
+try:
+    import pywinstyles
+    _HAS_PYWINSTYLES = True
+except ImportError:
+    _HAS_PYWINSTYLES = False
+
+# Module-level flag read by ToolTip to choose tooltip colours at hover time
+_dark_mode = False
+
+APP_NAME = "ReMInD"
+APP_VERSION = "3.0.0"
+APP_AUTHOR = "Nicholas Condon, IMB Microscopy, The University of Queensland, Brisbane Australia; Liam Howell, Sydney Microscopy and Microanalysis, The University of Sydney, Sydney Australia"
+APP_DATE = "June 2026"
 
 class ToolTip:
     def __init__(self, widget, text):
@@ -44,8 +78,11 @@ class ToolTip:
         self.tooltip = tk.Toplevel(self.widget)
         self.tooltip.wm_overrideredirect(True)
         self.tooltip.geometry(f"+{x}+{y}")
+        tip_bg = "#3a3a3a" if _dark_mode else "#ffffe0"
+        tip_fg = "#e8e8e8" if _dark_mode else "black"
         label = tk.Label(self.tooltip, text=self.text, justify='left',
-                         background="#ffffe0", relief='solid', borderwidth=1,
+                         background=tip_bg, foreground=tip_fg,
+                         relief='solid', borderwidth=1,
                          font=("tahoma", "8", "normal"))
         label.pack(ipadx=1)
 
@@ -58,7 +95,7 @@ class ToolTip:
 class REMBIGUI:
     def __init__(self, root):
         self.root = root
-        self.root.title("Recommended Metadata Interface for Documentation - " + APP_VERSION)
+        self.root.title(f"Recommended Metadata Interface for Documentation - {APP_NAME} v{APP_VERSION}")
 
         # Get screen dimensions
         screen_width = self.root.winfo_screenwidth()
@@ -103,24 +140,25 @@ class REMBIGUI:
 
         self.fields = [
             ("Experiment name", "", "Title of the experiment."),
-            ("RDM Info", "", "Green Indicator = connection to InstGateway successful, otherwise write the RDM project or storage info "),
+            ("Storage Location", "", "Enter your RDM/RDS project name"),
             ("Date and time", "", "Date and time of acquisition. The Now button will autopopulate the fields"),
             ("Experimentor Name(s)", "", "Enter your full name."),
             ("Sample Information", "", "e.g. Sample ID, or cell line, animal strain"),
             ("Genetic Modifications", "", "e.g. eGFP- mCherry-y"),
             ("Antibody or probes", "", "e.g. Alexa488-Phalloidin, DAPI, Alexa647-GaM"),
             ("Fixation / Live Media", "", "Fixation method used, or details of live imaging reagents"),
-            ("Sample mounting condition", "", "35mm Dish, #1.5 coverslip, chamber slide"),
+            ("Sample Carrier", "", "e.g. 35mm Dish, #1.5 coverslip, chamber slide"),
+            ("Mounting medium", "", "e.g. Prolong Gold, Mowiol, PBS, glycerol"),
             ("Microscope name", "", "e.g. Confocal 5"),
             ("Objective", "", "Objective lens details. e.g. Plan Apochromat 63x 1.4NA"),
             ("Immersion", ["Air", "Water", "Immersol W", "Glycerol", "Silicone", "Oil-23", "Oil-37", "Other"], "Select the immersion used."),
-            ("Imaging mode", ["Confocal", "Widefield", "Spinning Disc Confocal", "Lightsheet", "Other"], "Select the imaging mode used."),
-            ("Specialist modality", ["", "Airyscan", "STED", "FLIM", "2Photon", "TIRF", "Other"], "Select any specialist imaging modality used."),
+            ("Imaging mode", ["Confocal", "Widefield", "Spinning Disc Confocal", "Lightsheet", "Lattice Lightsheet", "2Photon", "Other"], "Select the imaging mode used."),
+            ("Specialist modality", ["Airyscan", "STED", "FLIM", "SoRa", "TIRF", "Other"], "Select any specialist imaging modality used."),
             ("Environmental Conditions", "", "e.g. Temperature and CO2"),
             ("Channel info", "", "Channel names, stains or labels used."),
             ("Z-stack", ["Yes", "No", "Both"], "Was a Z-stack acquired?"),
-            ("Time series", ["Yes", "No", "Both"], "Was this a time-lapse series?"),
-            ("Image format", "", "Image file format (e.g., .czi, .tif, .lif)."),
+            ("Time series", ["Yes", "No", "Both"], "Was a time-lapse series acquired?"),
+            ("Image format", "", "Image file format (e.g., .czi, .tif, .lif, .oir)."),
             ("Notes", "", "Analysis intent or relevant notes."),
         ]
 
@@ -140,14 +178,7 @@ class REMBIGUI:
         for label, options, tooltip_text in self.fields:
             tk.Label(parent, text=label, font=self.app_font).grid(row=self.row_counter, column=0, sticky="e", padx=5, pady=2)
 
-            if label == "RDM Info":
-                # Simple text entry field - no LED indicator or connectivity check
-                entry = tk.Entry(parent, font=self.app_font)
-                entry.grid(row=self.row_counter, column=1, padx=5, pady=2, sticky="ew")
-                self.entries[label] = entry
-                ToolTip(entry, tooltip_text)
-
-            elif isinstance(options, list):
+            if isinstance(options, list):
                 var = tk.StringVar()
                 combo = ttk.Combobox(parent, textvariable=var, values=options, state="normal", font=self.app_font, style="TCombobox")
                 combo.grid(row=self.row_counter, column=1, padx=5, pady=2, sticky="ew")
@@ -250,9 +281,9 @@ class REMBIGUI:
             ("Exit", self.root.quit),
             ("A+", self.increase_font_size),
             ("A-", self.decrease_font_size),
-            ("Export as JSON", self.export_as_json)
+            ("Export as JSON", self.export_as_json),
         ]
-        
+
         # Arrange buttons in two rows if screen is narrow
         screen_width = self.root.winfo_screenwidth()
         if screen_width < 1366:  # Small screen
@@ -261,7 +292,7 @@ class REMBIGUI:
             row1_frame.pack(pady=2)
             for text, command in buttons[:4]:
                 tk.Button(row1_frame, text=text, command=command, font=self.app_font).pack(side="left", padx=2)
-            
+
             # Second row
             row2_frame = tk.Frame(button_frame)
             row2_frame.pack(pady=2)
@@ -272,12 +303,21 @@ class REMBIGUI:
             for text, command in buttons:
                 tk.Button(button_frame, text=text, command=command, font=self.app_font).pack(side="left", padx=5)
 
-        version_label = tk.Label(parent, text=f"{APP_VERSION}  —  {APP_DATE}", fg="gray")
+        # Dark mode toggle — top-right corner, outside the scrollable area
+        self.dark_mode_btn = tk.Button(self.header_frame, text="Dark",
+                                       command=self.toggle_dark_mode, font=self.app_font)
+        self.dark_mode_btn.pack(side="right", padx=8, pady=3)
+
+        version_label = tk.Label(parent, text=f"{APP_NAME} v{APP_VERSION}  —  {APP_DATE}", fg="gray")
         version_label.grid(row=self.row_counter + 3, column=0, columnspan=2, pady=(0, 5))
 
     def setup_scrollable_window(self):
         """Create a scrollable main window for low resolution screens"""
-        # Create main canvas and scrollbar
+        # Thin header bar at the very top (holds the dark mode toggle)
+        self.header_frame = tk.Frame(self.root)
+        self.header_frame.pack(side="top", fill="x")
+
+        # Create main canvas and scrollbar below the header
         self.main_canvas = tk.Canvas(self.root)
         self.scrollbar = tk.Scrollbar(self.root, orient="vertical", command=self.main_canvas.yview)
         self.scrollable_frame = tk.Frame(self.main_canvas)
@@ -326,7 +366,7 @@ class REMBIGUI:
             if not messagebox.askyesno("Overwrite?", "This file already exists. Overwrite?"):
                 return
 
-        lines = [f"# Generated by {APP_VERSION} — {APP_AUTHOR}, {APP_DATE}", ""]
+        lines = [f"# Generated by {APP_NAME} v{APP_VERSION} — {APP_AUTHOR}, {APP_DATE}", ""]
         for label, _, _ in self.fields:
             if label in self.text_fields:
                 value = self.text_fields[label].get("1.0", tk.END).strip()
@@ -501,7 +541,7 @@ class REMBIGUI:
         
         help_text.insert("end", "🔬 Load Fields from Image File \n", "subtitle")
         help_text.insert("end", "\t• Click 'Load Fields from Image File' to automatically extract metadata from your image files.\n")
-        help_text.insert("end", "\t• Supported formats: CZI (Zeiss), LIF (Leica), and ND2 (Nikon) files.\n")
+        help_text.insert("end", "\t• Supported formats: CZI (Zeiss), LIF (Leica), ND2 (Nikon), and OIR (Olympus/Evident) files.\n")
         help_text.insert("end", "\t• The tool will automatically populate relevant fields with metadata from the image file including:\n")
         help_text.insert("end", "\t\t- Date and time of acquisition\n")
         help_text.insert("end", "\t\t- Microscope name and settings\n")
@@ -549,6 +589,8 @@ class REMBIGUI:
         help_text.insert("end", "\t\t  https://github.com/nimne/readlif\n\n")
         help_text.insert("end", "\t• nd2 by Talley Lambert - For reading Nikon ND2 files\n")
         help_text.insert("end", "\t\t  https://github.com/tlambert03/nd2\n\n")
+        help_text.insert("end", "\t• oirfile by Christoph Gohlke - For reading Olympus/Evident OIR files\n")
+        help_text.insert("end", "\t\t  https://github.com/cgohlke/oirfile\n\n")
         help_text.insert("end", "\t• Python standard libraries: tkinter, json, datetime, os, glob\n\n")
         help_text.insert("end", "Special thanks to the open-source community for making microscopy metadata\n")
         help_text.insert("end", "accessible and standardized across different imaging platforms.\n\n")
@@ -561,7 +603,7 @@ class REMBIGUI:
 
     def load_fields_from_image(self):
         filetypes = [
-            ("Image files", "*.tif *.tiff *.czi *.lif *.nd2 *.jpg *.png *.bmp"),
+            ("Image files", "*.tif *.tiff *.czi *.lif *.nd2 *.oir *.jpg *.png *.bmp"),
             ("All files", "*.*"),
         ]
         path = filedialog.askopenfilename(
@@ -736,9 +778,69 @@ class REMBIGUI:
 
             except Exception as e:
                 messagebox.showerror("Error", f"Failed to extract ND2 metadata:\n{e}")
-                
+
+        elif ext == ".oir":
+            try:
+                metadata_output, _ = extract_oir_metadata(path)
+
+                field_map = {
+                    "Experiment name": None,
+                    "Date and time": "Document Creation Date",
+                    "Experimentor Name(s)": "Document User Name",
+                    "Microscope name": "System Name",
+                    "Objective": "Objective Model",
+                    "Immersion": "Objective Medium",
+                    "Imaging mode": "Acquisition Modes",
+                    "Channel info": "Channel Names",
+                    "Image format": None,
+                    "Notes": None,
+                }
+
+                for remind_label, oir_key in field_map.items():
+                    if oir_key is None:
+                        if remind_label == "Image format":
+                            widget = self.entries[remind_label]
+                            if isinstance(widget, tk.StringVar):
+                                widget.set(ext)
+                            else:
+                                widget.delete(0, tk.END)
+                                widget.insert(0, ext)
+                        elif remind_label == "Notes":
+                            notes_widget = self.text_fields.get("Notes")
+                            if notes_widget:
+                                notes_widget.insert(tk.END, "\n[Imported from OIR]\n")
+                        continue
+
+                    value = metadata_output.get(oir_key, "")
+                    if remind_label == "Imaging mode":
+                        if isinstance(value, list) and value:
+                            value = str(value[0])
+                        elif isinstance(value, list):
+                            value = ""
+                    elif isinstance(value, list):
+                        value = ", ".join(str(v) for v in value)
+
+                    widget = self.entries.get(remind_label)
+                    if widget is None:
+                        continue
+                    if isinstance(widget, tk.StringVar):
+                        widget.set(value)
+                    elif isinstance(widget, tk.Entry):
+                        widget.delete(0, tk.END)
+                        widget.insert(0, value)
+                    elif remind_label == "Notes" and remind_label in self.text_fields:
+                        self.text_fields[remind_label].insert(tk.END, value)
+
+                self.show_metadata_in_window(metadata_output)
+                self.last_metadata_output = metadata_output
+
+                messagebox.showinfo("Success", "Fields loaded from OIR metadata.")
+
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to extract OIR metadata:\n{e}")
+
         else:
-            messagebox.showinfo("Not Supported", "Only CZI, LIF, and ND2 files are supported for metadata extraction at this time.")
+            messagebox.showinfo("Not Supported", "Only CZI, LIF, ND2, and OIR files are supported for metadata extraction at this time.")
 
     def show_metadata_in_window(self, metadata_dict):
         self.metadata_text.config(state="normal")
@@ -750,43 +852,79 @@ class REMBIGUI:
         self.metadata_text.config(state="disabled")
 
     def toggle_dark_mode(self):
-        dark_bg = "#222"
-        dark_fg = "#eee"
-        entry_bg = "#333"
-        entry_fg = "#fff"
-        highlight = "#444"
+        global _dark_mode
+        # Main window colours
+        dark_bg  = "#1e1e1e"
+        dark_fg  = "#e8e8e8"
+        # Combobox colours
+        entry_bg = "#2d2d2d"
+        entry_fg = "#ffffff"
+        highlight = "#3a3a3a"
 
-        style = ttk.Style()
-        if not hasattr(self, "dark_mode") or not self.dark_mode:
+        if not getattr(self, "dark_mode", False):
+            # --- Switch to dark ---
+            if _HAS_SV_TTK:
+                sv_ttk.set_theme("dark")
+            else:
+                style = ttk.Style()
+                style.theme_use("clam")
+                style.configure("TCombobox",
+                                fieldbackground=entry_bg, background=entry_bg,
+                                foreground=entry_fg, selectforeground=entry_fg,
+                                selectbackground=entry_bg)
             self.root.configure(bg=dark_bg)
-            for widget in self.root.winfo_children():
-                self._set_widget_dark(widget, dark_bg, dark_fg, entry_bg, entry_fg, highlight)
-            # Use clam theme for better dark combobox support
-            style.theme_use('clam')
-            style.configure("TCombobox",
-                            fieldbackground=entry_bg,
-                            background=entry_bg,
-                            foreground=entry_fg,
-                            selectforeground=entry_fg,
-                            selectbackground=entry_bg)
+            for w in self.root.winfo_children():
+                self._set_widget_dark(w, dark_bg, dark_fg, entry_bg, entry_fg, highlight)
             self.dark_mode = True
+            _dark_mode = True
+            if hasattr(self, "dark_mode_btn"):
+                self.dark_mode_btn.configure(text="Light")
         else:
+            # --- Switch to light ---
+            if _HAS_SV_TTK:
+                sv_ttk.set_theme("light")
+            else:
+                style = ttk.Style()
+                style.theme_use("clam")
+                style.configure("TCombobox",
+                                fieldbackground="white", background="white",
+                                foreground="black", selectforeground="black",
+                                selectbackground="white")
             self.root.configure(bg="SystemButtonFace")
-            for widget in self.root.winfo_children():
-                self._set_widget_light(widget)
-            style.theme_use('clam')
-            style.configure("TCombobox",
-                            fieldbackground="white",
-                            background="white",
-                            foreground="black",
-                            selectforeground="black",
-                            selectbackground="white")
+            for w in self.root.winfo_children():
+                self._set_widget_light(w)
             self.dark_mode = False
+            _dark_mode = False
+            if hasattr(self, "dark_mode_btn"):
+                self.dark_mode_btn.configure(text="Dark")
+
+        self._apply_theme_to_titlebar()
+
+    def _apply_theme_to_titlebar(self):
+        """Sync the Windows title bar colour to the current app theme."""
+        if not _HAS_PYWINSTYLES:
+            return
+        try:
+            version = sys.getwindowsversion()
+            if version.major == 10 and version.build >= 22000:
+                # Windows 11: set exact header colour
+                color = "#1c1c1c" if getattr(self, "dark_mode", False) else "#fafafa"
+                pywinstyles.change_header_color(self.root, color)
+            elif version.major == 10:
+                # Windows 10: apply style and nudge alpha to force a redraw
+                style = "dark" if getattr(self, "dark_mode", False) else "normal"
+                pywinstyles.apply_style(self.root, style)
+                self.root.wm_attributes("-alpha", 0.99)
+                self.root.wm_attributes("-alpha", 1)
+        except Exception:
+            pass
 
     def _set_widget_dark(self, widget, bg, fg, entry_bg, entry_fg, highlight):
         cls = widget.__class__.__name__
         if cls in ["Frame", "LabelFrame"]:
             widget.configure(bg=bg)
+        elif cls == "Canvas":
+            widget.configure(bg=bg, highlightbackground=bg)
         elif cls == "Label":
             widget.configure(bg=bg, fg=fg)
         elif cls == "Entry":
@@ -799,15 +937,17 @@ class REMBIGUI:
             widget.configure(bg=bg)
         elif cls == "Scrollbar":
             widget.configure(bg=bg, troughcolor=highlight)
-        # Do not try to configure ttk.Combobox here; it's handled by ttk.Style
+        # ttk.Combobox colours are handled by ttk.Style / sv-ttk; skip here
         for child in widget.winfo_children():
             self._set_widget_dark(child, bg, fg, entry_bg, entry_fg, highlight)
 
     def _set_widget_light(self, widget):
-        # Recursively reset to default colors
+        """Recursively reset all widgets to system default (light) colours."""
         cls = widget.__class__.__name__
         if cls in ["Frame", "LabelFrame", "Toplevel"]:
             widget.configure(bg="SystemButtonFace")
+        elif cls == "Canvas":
+            widget.configure(bg="SystemButtonFace", highlightbackground="SystemButtonFace")
         elif cls == "Label":
             widget.configure(bg="SystemButtonFace", fg="black")
         elif cls == "Entry":
@@ -815,10 +955,10 @@ class REMBIGUI:
         elif cls == "Text":
             widget.configure(bg="white", fg="black", insertbackground="black")
         elif cls == "Button":
-            widget.configure(bg="SystemButtonFace", fg="black", activebackground="SystemButtonFace", activeforeground="black")
+            widget.configure(bg="SystemButtonFace", fg="black",
+                             activebackground="SystemButtonFace", activeforeground="black")
         elif cls == "Scrollbar":
             widget.configure(bg="SystemButtonFace")
-        # Recursively apply to children
         for child in widget.winfo_children():
             self._set_widget_light(child)
 

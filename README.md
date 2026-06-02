@@ -1,10 +1,11 @@
 # ReMInD
 # 🧬 Recommended Metadata Interface for Documentation
 
-**Version**: 2.27 (Full), 2.3 (Lite)  
-**Author**: Dr Nicholas Condon (n.condon@uq.edu.au)  
-**Affiliation**: Institute for Molecular Bioscience (IMB) Microscopy Facility, The University of Queensland  
-**Date**: June 2025
+**Version**: 3.0.0  
+**Maintainer**: Liam Howell, Sydney Microscopy and Microanalysis, The University of Sydney  
+**Original author**: Dr Nicholas Condon (n.condon@uq.edu.au), Institute for Molecular Bioscience (IMB) Microscopy Facility, The University of Queensland  
+**License**: GNU GPL v3.0  
+**Date**: June 2026
 
 ---
 
@@ -13,6 +14,10 @@
 ReMInD assists researchers in capturing and organizing essential metadata for imaging experiments. It generates structured `ReadME.txt` files and JSON exports that can be stored alongside raw data to support good research data management (RDM) practices and future reuse.
 
 The tool is especially useful for users of light microscopy and other imaging systems, helping to ensure that contextual information is not lost after acquisition. It features automatic metadata extraction from microscopy file formats to streamline the documentation process.
+
+> **Project history:** ReMInD 3.0 is a single, unified application that continues from the
+> earlier "ReMInD Lite" line. It originated as [ReMInD by Nicholas Condon](https://github.com/NickCondon/Remind)
+> and is now developed and maintained independently by Liam Howell under the GPL v3.0.
 
 ---
 
@@ -43,11 +48,6 @@ The tool is especially useful for users of light microscopy and other imaging sy
 - **Two-row button layout** for narrow screens
 - **Dark/light mode toggle** with Windows title bar theming
 
-### UQ RDM Integration (Full Version)
-- **UQ InstGateway connectivity** - automatic detection of available RDM projects
-- **Visual indicators** for network connectivity status
-- **Manual entry fallback** when not connected to institutional systems
-
 ---
 
 ## 🖥️ Requirements*
@@ -55,7 +55,7 @@ The tool is especially useful for users of light microscopy and other imaging sy
 - **Python** 3.12+
 - **Tkinter** (included with most Python installations)
 - **Additional libraries** for metadata extraction:
-  - `czifile` - for Zeiss CZI files [link](https://github.com/cgohlke/czifile)
+  - `pylibCZIrw` - for Zeiss CZI files [link](https://github.com/ZEISS/pylibczirw)
   - `readlif` - for Leica LIF files [link](https://github.com/Arcadia-Science/readlif)
   - `nd2` - for Nikon ND2 files [link](https://github.com/tlambert03/nd2)
   - `oirfile` - for Olympus/Evident OIR files [link](https://github.com/cgohlke/oirfile)
@@ -66,36 +66,34 @@ The tool is especially useful for users of light microscopy and other imaging sy
 
 ---
 
-## 📁 Versions Available
+## ▶️ Running from Source
 
-### ReMInD Full (ReMInD_v2.27.py)
-- Complete feature set including RDM connectivity
-- UQ InstGateway integration for institutional users
-- Recommended for University of Queensland researchers
-
-### ReMInD Lite (ReMInD_Lite_v2.3.py)
-- Streamlined version without RDM connectivity
-- All metadata extraction features included
-- Suitable for general use and other institutions
+```bash
+git clone https://github.com/L-Howell/ReMInD.git
+cd ReMInD
+pip install -r requirements.txt
+python src/remind.py
+```
 
 ---
 
 ## ⌨️ Creating the Executable
 
+The repository includes a ready-to-use build script at `build_scripts/build.bat`. To build manually:
+
 1. **Install PyInstaller**
    ```bash
    pip install pyinstaller
    ```
-2.  Place the python file into its own directory with no spaces
-3.  In Command Prompt navigate to this directory with the script
-4.  Run the following command replacing `<scriptname>` with your own (e.g. `ReMInD_Lite_v2.3.py`)
+2.  In a terminal, navigate to the project root.
+3.  Run:
    ```bash
-   pyinstaller --onefile --windowed --name "executablename" --add-data "metadata_extractors;metadata_extractors" <scriptname>.py
+   pyinstaller --onefile --windowed --name "ReMInD" --add-data "src/metadata_extractors;metadata_extractors" src/remind.py
    ```
-5.  Your single executable will be within the dist directory that was created.
+4.  Your single executable will be within the `dist` directory that was created.
 
 
 ## 📦 Packaged Executable
-- The Remind.exe file can be downloaded and is fully self contained for Windows 11
-- If using the custom icon file (provided) you will need to create a shortcut to the Remind.exe to use custom icons in Windows 11
+- The `ReMInD.exe` file is fully self contained for Windows 11
+- If using the custom icon file (provided) you will need to create a shortcut to `ReMInD.exe` to use the custom icon in Windows 11
 

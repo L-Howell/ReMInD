@@ -18,3 +18,13 @@ build/
 .DS_Store
 Thumbs.db
 
+# Local test data & dev scratch
+*.tif
+*.tiff
+*.czi
+*.lif
+*.nd2
+*.oir
+oir_xml_block_*.xml
+environment_backup.yml
+
