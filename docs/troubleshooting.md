@@ -282,7 +282,6 @@ For multiple files:
 - Enhanced template system
 
 ### Requested Enhancements
-- Dark mode interface
 - Custom field definitions
 - Multi-language support
 - Integration with laboratory information systems
