@@ -187,33 +187,41 @@ elif label == "Special Field":
 
 ## Building Executables
 
-### Using PyInstaller
+The repository ships a ready-to-use script at `build_scripts/build.bat`. Run it
+from an **activated** conda environment (e.g. `conda activate remind-py312`).
+
+> **Always build from an activated conda env.** Activation puts the env's
+> `Library\bin` on `PATH`, which PyInstaller needs to find the Tcl/Tk (and other)
+> DLLs. Building from a non-activated interpreter produces an `.exe` that fails to
+> launch with `ImportError: DLL load failed while importing _tkinter`.
+
+### Using PyInstaller manually
 ```bash
-# Install PyInstaller
-pip install pyinstaller
+# Install the build requirements (includes PyInstaller)
+pip install -r build_scripts/requirements_build.txt
 
-# Basic build
-pyinstaller --onefile --windowed src/remind.py
-
-# Advanced build with dependencies
-pyinstaller --onefile --windowed --name "ReMInD" \
-    --add-data "src/metadata_extractors/CZI_MetadataGUI.py;." \
-    --add-data "src/metadata_extractors/LIF_MetadataGUI.py;." \
-    --add-data "src/metadata_extractors/Nd2_v2a.py;." \
-    --add-data "src/metadata_extractors/OIR_MetadataGUI.py;." \
+# Build (run from the project root)
+pyinstaller --onefile --windowed --name "ReMInD" --noconfirm ^
+    --add-data "src/metadata_extractors;metadata_extractors" ^
+    --collect-all ome_types ^
+    --collect-all xsdata ^
+    --collect-all xsdata_pydantic_basemodel ^
     src/remind.py
 ```
 
-### Build Script
-Create `build.bat`:
-```batch
-@echo off
-echo Building ReMInD...
-pip install pyinstaller pylibCZIrw readlif nd2 oirfile sv-ttk pywinstyles
-pyinstaller --onefile --windowed --name "ReMInD" src/remind.py
-echo Build complete! Check dist/ folder.
-pause
-```
+Notes:
+- Bundle the whole `metadata_extractors` package with a single `--add-data`
+  (folder, not individual files), so `_common.py` and every extractor are included.
+- The `--collect-all` flags are **required**: `ome_types`/`xsdata` load some
+  submodules (e.g. `xsdata_pydantic_basemodel.hooks`) dynamically, which
+  PyInstaller's static analysis misses. Without them the OME-TIFF extractor import
+  fails and the app exits on startup. This is **independent of the env** — the
+  missing-module error happens even when building inside an activated
+  `remind-py312`; activation only addresses the separate Tcl/Tk DLL issue above.
+- `^` is the Windows line-continuation character; on macOS/Linux use `\` and swap
+  the `--add-data` separator from `;` to `:`.
+
+The single executable is written to the `dist/` directory.
 
 ## Testing
 

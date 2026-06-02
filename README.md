@@ -85,15 +85,32 @@ python src/remind.py
 
 The repository includes a ready-to-use build script at `build_scripts/build.bat`. To build manually:
 
-1. **Install PyInstaller**
+1. **Activate the conda environment first** (e.g. `conda activate remind-py312`).
+   This matters: activation puts the environment's `Library\bin` on `PATH`, which
+   PyInstaller needs to find the Tcl/Tk (and other) DLLs. Building from a
+   non-activated interpreter produces an `.exe` that fails to launch with
+   `ImportError: DLL load failed while importing _tkinter`.
+
+2. **Install the build requirements** (includes PyInstaller):
    ```bash
-   pip install pyinstaller
+   pip install -r build_scripts/requirements_build.txt
    ```
-2.  In a terminal, navigate to the project root.
-3.  Run:
+3.  From the project root, run:
    ```bash
-   pyinstaller --onefile --windowed --name "ReMInD" --add-data "src/metadata_extractors;metadata_extractors" src/remind.py
+   pyinstaller --onefile --windowed --name "ReMInD" --noconfirm ^
+       --add-data "src/metadata_extractors;metadata_extractors" ^
+       --collect-all ome_types ^
+       --collect-all xsdata ^
+       --collect-all xsdata_pydantic_basemodel ^
+       src/remind.py
    ```
+   The `--collect-all` flags are required: `ome_types`/`xsdata` load some
+   submodules (e.g. `xsdata_pydantic_basemodel.hooks`) dynamically, which
+   PyInstaller's static analysis misses — without them the OME-TIFF extractor
+   import fails and the app exits on startup. **This is independent of step 1** —
+   the missing-module error occurs even when building inside an activated
+   `remind-py312`; only `--collect-all` resolves it. (`^` is the Windows line
+   continuation; on macOS/Linux use `\` and `:` instead of `;` in `--add-data`.)
 4.  Your single executable will be within the `dist` directory that was created.
 
 
