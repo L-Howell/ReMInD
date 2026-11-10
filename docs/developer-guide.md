@@ -57,7 +57,7 @@ python src/remind.py
   - `export_as_json()` - JSON export functionality
 
 #### Metadata Extractors
-- **czi_metadata.py** - Handles Zeiss CZI files using `pylibCZIrw` library
+- **czi_metadata.py** - Handles Zeiss CZI files using `czifile` library
 - **lif_metadata.py** - Handles Leica LIF files using `liffile` library  
 - **nd2_metadata.py** - Handles Nikon ND2 files using `nd2` library
 - **oir_metadata.py** - Handles Olympus/Evident OIR files using `oirfile` library

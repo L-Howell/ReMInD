@@ -30,7 +30,7 @@ from metadata_extractors._common import combine_image_metadata
 from metadata_extractors.field_mapping import metadata_to_form_fields, merge_form_fields
 from readme_io import MULTILINE_FIELDS, format_json, format_readme, parse_json, parse_readme
 from help_text import HELP_TEXT
-from theme import HINT_COLOUR, apply_theme
+from theme import BODY_FONT, HEADING_FONT, HINT_COLOUR, apply_theme
 from version import RELEASE_DATE, VERSION
 
 APP_NAME = "ReMInD"
@@ -674,18 +674,34 @@ class RemindApp:
 
     def show_help(self):
         help_window = tk.Toplevel(self.root)
-        help_window.title("Help / Info")
-        help_window.geometry("1000x650")
+        help_window.title("Help")
+        lines = HELP_TEXT.format(version=VERSION, date=RELEASE_DATE).splitlines()
 
-        help_text = tk.Text(help_window, wrap="word", font=("Segoe UI", 10), width=80, height=35,
-                            **self.text_colours())
-        help_text.pack(expand=True, fill="both", padx=10, pady=10)
-        help_text.tag_configure("title", font=("Segoe UI", 12, "bold"))
-        help_text.tag_configure("heading", font=("Segoe UI", 10, "bold"))
-        for line in HELP_TEXT.splitlines():
-            marker, tag = next(((m, t) for m, t in (("## ", "title"), ("# ", "heading")) if line.startswith(m)),
-                               ("", ""))
-            help_text.insert("end", line[len(marker):] + "\n", tag)
+        # Tall enough to show the text without scrolling where the screen allows.
+        help_text = tk.Text(help_window, wrap="word", font=BODY_FONT, width=92, padx=18, pady=14,
+                            height=min(len(lines) + 14, self.root.winfo_screenheight() // 26),
+                            spacing1=2, spacing3=2, **{**self.text_colours(), "highlightthickness": 0})
+        scrollbar = ttk.Scrollbar(help_window, command=help_text.yview)
+        help_text.config(yscrollcommand=scrollbar.set)
+        scrollbar.pack(side="right", fill="y")
+        help_text.pack(side="left", expand=True, fill="both")
+
+        help_text.tag_configure("title", font=HEADING_FONT, spacing3=6)
+        help_text.tag_configure("heading", font=HEADING_FONT, spacing1=14, spacing3=4)
+        help_text.tag_configure("plain", lmargin1=14, lmargin2=14)
+        # The first line of a bullet or step starts at the marker and the
+        # lines it wraps onto line up with its text.
+        help_text.tag_configure("item", lmargin1=14, lmargin2=30)
+        help_text.insert("end", lines[0] + "\n", "title")
+        for line in lines[1:]:
+            if line.startswith("# "):
+                help_text.insert("end", line[2:] + "\n", "heading")
+            elif line.startswith("- "):
+                help_text.insert("end", "\u2022  " + line[2:] + "\n", "item")
+            elif line[:1].isdigit():
+                help_text.insert("end", line + "\n", "item")
+            else:
+                help_text.insert("end", line.strip() + "\n", "plain")
         help_text.config(state="disabled")
 
     def load_fields_from_image(self):
