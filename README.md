@@ -26,10 +26,10 @@ by making it easy to record metadata at the point of acquisition.
 
 ## What it does
 
-Image files record how they were acquired, but not what the sample was or why it was
-imaged. ReMInD is a single form that makes it easy to record everything: sample, labels,
-fixation, storage location, notes. Load one of your image files and it fills in what the
-file already contains, such as the objective, the channels and the acquisition date.
+An image file records how it was acquired, but not what the sample was or why it was
+imaged. ReMInD puts both in one record. Load an image file and it fills in what the file
+already contains, such as the objective, the channels and the acquisition date. You add
+the rest: sample, labels, fixation, storage location and notes.
 
 The result is a plain-text file that anyone can read without needing ReMInD:
 
