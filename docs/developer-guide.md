@@ -61,9 +61,9 @@ python src/remind.py
 - **lif_metadata.py** - Handles Leica LIF files using `liffile` library  
 - **nd2_metadata.py** - Handles Nikon ND2 files using `nd2` library
 - **oir_metadata.py** - Handles Olympus/Evident OIR files using `oirfile` library
-- **ome_tiff_metadata.py** - Handles OME-TIFF files using `ome-types` library
+- **ome_tiff_metadata.py** - Handles OME-TIFF files using `tifffile` library
 - **field_mapping.py** - `metadata_to_form_fields()` turns an extractor's output into form field values
-- **_common.py** - Shared helpers: `combine_image_metadata()` for files that hold several images, and `immersion_term()` / `imaging_mode_term()` for translating file values into the form's terms
+- **_common.py** - Shared helpers: `combine_image_metadata()` for files that hold several images, `parse_xml()`, and `immersion_term()` / `imaging_mode_term()` for translating file values into the form's terms
 
 #### readme_io.py
 - **Purpose**: The ReadMe.txt file format, with no GUI code

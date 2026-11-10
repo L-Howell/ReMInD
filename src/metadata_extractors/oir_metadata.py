@@ -6,30 +6,12 @@ All numeric values are converted to standard units and rounded to 3 decimal plac
 
 import os
 import re
-import xml.etree.ElementTree as ET
 from oirfile import OirFile
 
 try:
-    from ._common import immersion_term, imaging_mode_term
+    from ._common import immersion_term, imaging_mode_term, parse_xml
 except ImportError:  # allow running as a standalone script
-    from _common import immersion_term, imaging_mode_term
-
-
-def _parse_strip_ns(xml_str):
-    """
-    Parse XML string and strip namespace URIs from all tag and attribute names.
-    e.g. '{http://...}systemName' → 'systemName'
-    Parsing before stripping avoids errors from namespace-prefixed attributes (xsi:type etc.).
-    """
-    root = ET.fromstring(xml_str)
-    for el in root.iter():
-        if '{' in el.tag:
-            el.tag = el.tag.split('}', 1)[1]
-        el.attrib = {
-            (k.split('}', 1)[1] if '{' in k else k): v
-            for k, v in el.attrib.items()
-        }
-    return root
+    from _common import immersion_term, imaging_mode_term, parse_xml
 
 
 def _parse_all_xml(xml_metadata):
@@ -38,7 +20,7 @@ def _parse_all_xml(xml_metadata):
     for xml_list in xml_metadata.values():
         for xml_str in xml_list:
             try:
-                roots.append(_parse_strip_ns(xml_str))
+                roots.append(parse_xml(xml_str))
             except Exception:
                 continue
     return roots

@@ -74,7 +74,7 @@ To update a record later, open it with <kbd>Load ReadMe.txt</kbd>. The
 | `.lif` | Leica | [liffile](https://github.com/cgohlke/liffile) |
 | `.nd2` | Nikon | [nd2](https://github.com/tlambert03/nd2) |
 | `.oir` | Evident / Olympus | [oirfile](https://github.com/cgohlke/oirfile) |
-| `.ome.tif` | Any that writes OME-TIFF | [ome-types](https://github.com/tlambert03/ome-types) |
+| `.ome.tif` | Any that writes OME-TIFF | [tifffile](https://github.com/cgohlke/tifffile) |
 
 A file that holds several images, such as a Leica project, is read in full. Settings
 that differ between its images are all listed.

@@ -11,16 +11,11 @@ pip install -r requirements_build.txt
 if errorlevel 1 exit /b 1
 
 echo Building ReMInD...
-REM --collect-all is required for ome_types/xsdata: they load submodules (e.g.
-REM xsdata_pydantic_basemodel.hooks) dynamically, which PyInstaller misses otherwise.
 REM --icon sets the icon of the .exe file; --add-data ships the same file so
 REM the program can use it for its window.
 pyinstaller --onefile --windowed --name "ReMInD" --noconfirm ^
     --icon "../ReMInD.ico" ^
     --add-data "../ReMInD.ico;." ^
-    --collect-all ome_types ^
-    --collect-all xsdata ^
-    --collect-all xsdata_pydantic_basemodel ^
     ../src/remind.py
 if errorlevel 1 exit /b 1
 

@@ -2,7 +2,24 @@
 Shared helpers for metadata extractors.
 """
 
+import xml.etree.ElementTree as ET
 from collections import Counter
+
+
+def parse_xml(text):
+    """
+    Parse XML text and return its root element with the namespaces removed
+    from every tag and attribute name, e.g. "{http://...}Pixels" becomes
+    "Pixels". Elements can then be found by their plain names.
+
+    Raises:
+        xml.etree.ElementTree.ParseError: if the text is not well-formed XML.
+    """
+    root = ET.fromstring(text)
+    for element in root.iter():
+        element.tag = element.tag.split("}", 1)[-1]
+        element.attrib = {name.split("}", 1)[-1]: value for name, value in element.attrib.items()}
+    return root
 
 
 def _display(value):

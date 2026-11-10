@@ -4,4 +4,4 @@ czifile==2026.11.8    # Zeiss CZI files
 liffile==2026.11.8    # Leica LIF files
 nd2==0.12.0           # Nikon ND2 files
 oirfile==2026.10.22   # Olympus/Evident OIR files
-ome-types==0.7.0      # OME-TIFF files (reads embedded OME-XML)
+tifffile==2026.11.8   # OME-TIFF files (reads embedded OME-XML)

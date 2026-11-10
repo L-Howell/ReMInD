@@ -11,10 +11,10 @@ HELP_TEXT = """\
 ReMInD Help
   Version {version}, {date}
 
-  ReMInD records metadata associated with an imaging experiment, in a ReadMe.txt that you keep beside the raw data.
+  ReMInD records the metadata for an imaging experiment in a ReadMe.txt that you keep beside the raw data.
 
 # Getting started
-1. Click Load Fields from Image File and choose one of your image files. ReMInD fills in whatever metadata is already available in the file.
+1. Click Load Fields from Image File and choose one of your image files. ReMInD fills in the metadata the file already contains.
 2. Check the highlighted fields, then fill in the rest. No field is compulsory.
 3. Click Generate ReadMe.txt and save it in the same folder as your image data.
   To change a record later, open it with Load ReadMe.txt, edit it and generate it again (or just edit the .txt file directly).
@@ -30,7 +30,8 @@ ReMInD Help
 # Filling in the form
 - Channel info: give each channel as excitation wavelength and target, in order of acquisition, e.g. 405 (DAPI), 488 (GFP-tubulin), 561 (mCherry).
 - The dropdown lists accept typed text. If no option fits, type your own.
-- Storage Location: where the raw data will be kept. Typically, this would be your RDS project folder.
+- Storage Location: where the raw data will be kept, typically your project folder on your institution's research data store.
+- Some fields may be pre-filled from a template set up for this instrument. Clear Form returns to those values.
 - Hover over any field for a description.
 
 # Filename Key
@@ -38,13 +39,13 @@ ReMInD Help
 - Each keyword must appear only in the file names of its own group.
 
 # Saving and reopening
-- Export as JSON saves the same content as the ReadMe, for easier reading in other software.
+- Export as JSON saves the same content as structured data, which scripts and other software can read directly.
 - Load ReadMe.txt opens either kind of file.
 
 # About
   ReMInD was created by Nicholas Condon (IMB Microscopy, The University of Queensland) and is developed and maintained independently by Liam Howell (Sydney Microscopy and Microanalysis, The University of Sydney).
 
-  Image files are read with czifile, liffile and oirfile (Christoph Gohlke), and nd2 and ome-types (Talley Lambert).
+  Image files are read with czifile, liffile, oirfile and tifffile (Christoph Gohlke), and nd2 (Talley Lambert).
 
   User guide, updates and problem reports: https://github.com/L-Howell/ReMInD
 """
