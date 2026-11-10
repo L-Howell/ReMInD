@@ -15,6 +15,7 @@ been modified and extended (OIR support, dark mode, single unified application),
 and is maintained independently from v3.0.0 onward by Liam Howell.
 """
 
+import ctypes
 import tkinter as tk
 from tkinter import filedialog, messagebox
 import tkinter.font as tkfont
@@ -45,17 +46,7 @@ except ImportError as e:
     print("Make sure the metadata_extractors folder contains the required files")
     sys.exit(1)
 
-try:
-    import sv_ttk
-    _HAS_SV_TTK = True
-except ImportError:
-    _HAS_SV_TTK = False
-
-try:
-    import pywinstyles
-    _HAS_PYWINSTYLES = True
-except ImportError:
-    _HAS_PYWINSTYLES = False
+import sv_ttk
 
 # Module-level flag read by ToolTip to choose tooltip colours at hover time
 _dark_mode = False
@@ -233,6 +224,10 @@ class REMBIGUI:
                 combo.grid(row=self.row_counter, column=1, padx=5, pady=2, sticky="ew")
                 self.entries[label] = var
                 ToolTip(combo, tooltip_text)
+                # Without this the wheel changes the selected value of a
+                # dropdown the pointer happens to be over.
+                for wheel_event in ("<MouseWheel>", "<Button-4>", "<Button-5>"):
+                    combo.bind(wheel_event, self.scroll_form)
 
             elif label == "Date and time":
                 frame = tk.Frame(parent)
@@ -394,16 +389,29 @@ class REMBIGUI:
         self.main_canvas.pack(side="left", fill="both", expand=True)
         self.scrollbar.pack(side="right", fill="y")
 
-        # Bind mousewheel to canvas
-        def _on_mousewheel(event):
-            self.main_canvas.yview_scroll(int(-1*(event.delta/120)), "units")
-        
-        self.main_canvas.bind("<MouseWheel>", _on_mousewheel)  # Windows
-        self.main_canvas.bind("<Button-4>", lambda e: self.main_canvas.yview_scroll(-1, "units"))  # Linux
-        self.main_canvas.bind("<Button-5>", lambda e: self.main_canvas.yview_scroll(1, "units"))   # Linux
+        # Bound for every widget so the form scrolls wherever the pointer is.
+        self.root.bind_all("<MouseWheel>", self.scroll_form)  # Windows
+        self.root.bind_all("<Button-4>", self.scroll_form)    # Linux
+        self.root.bind_all("<Button-5>", self.scroll_form)    # Linux
 
         # Update the root reference for form building
         self.form_root = self.scrollable_frame
+
+    def scroll_form(self, event):
+        """Scroll the form in response to a mouse wheel event."""
+        widget = event.widget
+        # Text boxes and open dropdown lists scroll their own content. Tk
+        # reports a dropdown list as a path string, not a widget object.
+        if isinstance(widget, str) or widget.winfo_class() == "Text":
+            return None
+        if widget.winfo_toplevel() is not self.root:
+            return None
+        if event.num in (4, 5):
+            steps = -1 if event.num == 4 else 1
+        else:
+            steps = int(-event.delta / 120)
+        self.main_canvas.yview_scroll(steps, "units")
+        return "break"
 
     def field_values(self):
         values = []
@@ -718,15 +726,7 @@ class REMBIGUI:
 
         if not getattr(self, "dark_mode", False):
             # --- Switch to dark ---
-            if _HAS_SV_TTK:
-                sv_ttk.set_theme("dark")
-            else:
-                style = ttk.Style()
-                style.theme_use("clam")
-                style.configure("TCombobox",
-                                fieldbackground=entry_bg, background=entry_bg,
-                                foreground=entry_fg, selectforeground=entry_fg,
-                                selectbackground=entry_bg)
+            sv_ttk.set_theme("dark")
             self.root.configure(bg=dark_bg)
             for w in self.root.winfo_children():
                 self._set_widget_dark(w, dark_bg, dark_fg, entry_bg, entry_fg, highlight)
@@ -736,15 +736,7 @@ class REMBIGUI:
                 self.dark_mode_btn.configure(text="Light")
         else:
             # --- Switch to light ---
-            if _HAS_SV_TTK:
-                sv_ttk.set_theme("light")
-            else:
-                style = ttk.Style()
-                style.theme_use("clam")
-                style.configure("TCombobox",
-                                fieldbackground="white", background="white",
-                                foreground="black", selectforeground="black",
-                                selectbackground="white")
+            sv_ttk.set_theme("light")
             self.root.configure(bg="SystemButtonFace")
             for w in self.root.winfo_children():
                 self._set_widget_light(w)
@@ -756,19 +748,19 @@ class REMBIGUI:
         self._apply_theme_to_titlebar()
 
     def _apply_theme_to_titlebar(self):
-        """Sync the Windows title bar colour to the current app theme."""
-        if not _HAS_PYWINSTYLES:
+        """Give the Windows title bar the dark or light style of the app
+        theme. Does nothing on other systems, or on Windows versions that
+        have no dark title bar."""
+        if sys.platform != "win32":
             return
         try:
-            version = sys.getwindowsversion()
-            if version.major == 10 and version.build >= 22000:
-                # Windows 11: set exact header colour
-                color = "#1c1c1c" if getattr(self, "dark_mode", False) else "#fafafa"
-                pywinstyles.change_header_color(self.root, color)
-            elif version.major == 10:
-                # Windows 10: apply style and nudge alpha to force a redraw
-                style = "dark" if getattr(self, "dark_mode", False) else "normal"
-                pywinstyles.apply_style(self.root, style)
+            self.root.update()  # the window needs a handle before it can be styled
+            window = ctypes.windll.user32.GetParent(self.root.winfo_id())
+            dark = ctypes.c_int(1 if self.dark_mode else 0)
+            # 20 is DWMWA_USE_IMMERSIVE_DARK_MODE.
+            ctypes.windll.dwmapi.DwmSetWindowAttribute(window, 20, ctypes.byref(dark), ctypes.sizeof(dark))
+            if sys.getwindowsversion().build < 22000:
+                # Windows 10 repaints the title bar only when the window changes.
                 self.root.wm_attributes("-alpha", 0.99)
                 self.root.wm_attributes("-alpha", 1)
         except Exception:
@@ -792,7 +784,7 @@ class REMBIGUI:
             widget.configure(bg=bg)
         elif cls == "Scrollbar":
             widget.configure(bg=bg, troughcolor=highlight)
-        # ttk.Combobox colours are handled by ttk.Style / sv-ttk; skip here
+        # ttk.Combobox colours are handled by sv-ttk; skip here
         for child in widget.winfo_children():
             self._set_widget_dark(child, bg, fg, entry_bg, entry_fg, highlight)
 

@@ -62,8 +62,7 @@ The tool is especially useful for users of light microscopy and other imaging sy
   - `nd2` - for Nikon ND2 files [link](https://github.com/tlambert03/nd2)
   - `oirfile` - for Olympus/Evident OIR files [link](https://github.com/cgohlke/oirfile)
   - `ome-types` - for OME-TIFF files [link](https://github.com/tlambert03/ome-types)
-  - `sv-ttk` *(optional)* - dark/light theme for ttk widgets
-  - `pywinstyles` *(optional)* - Windows title bar colour theming
+  - `sv-ttk` - dark/light theme for the dropdowns
 
 *Only needed for editing and testing the Python code
 
