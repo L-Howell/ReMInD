@@ -24,15 +24,12 @@ def _text(value):
 
 
 def _first(value):
-    """Return the text of the first list item that holds information, or the
-    text of the value itself if it is not a list."""
     if isinstance(value, (list, tuple)):
         return next((t for t in (_text(v) for v in value) if t), "")
     return _text(value)
 
 
 def _more_than_one(count):
-    """Return "Yes" if count is a number above 1, otherwise "No"."""
     try:
         return "Yes" if int(float(count)) > 1 else "No"
     except (TypeError, ValueError):
@@ -57,10 +54,11 @@ def metadata_to_form_fields(metadata):
         leave every other field as the user had it. Missing keys, None, ""
         and "N/A" all count as no value.
 
-        "Immersion" and "Imaging mode" are translated to the form's terms
-        where the value is recognised and passed through unchanged otherwise.
-        When "Acquisition Modes" is a list (one per channel) the first usable
-        item is used. "Z-stack" and "Time series" are "Yes" when the size is
+        "Immersion" and the acquisition mode are translated to the form's
+        terms where the value is recognised and passed through unchanged
+        otherwise. When "Acquisition Modes" is a list (one per channel) the
+        first usable item is used. It fills "Specialist modality" when it is
+        STED, TIRF or FLIM, and "Imaging mode" otherwise. "Z-stack" and "Time series" are "Yes" when the size is
         above 1 and "No" otherwise; they are left out only when the size key
         is missing from the metadata altogether.
     """
@@ -69,9 +67,10 @@ def metadata_to_form_fields(metadata):
         "Microscope name": _text(metadata.get("System Name")),
         "Objective":       _text(metadata.get("Objective Model")),
         "Immersion":       immersion_term(_text(metadata.get("Objective Medium"))),
-        "Imaging mode":    imaging_mode_term(_first(metadata.get("Acquisition Modes"))),
         "Channel info":    _text(metadata.get("Channel Names")),
     }
+    mode = imaging_mode_term(_first(metadata.get("Acquisition Modes")))
+    values["Specialist modality" if mode in ("STED", "TIRF", "FLIM") else "Imaging mode"] = mode
     if "Size Z" in metadata:
         values["Z-stack"] = _more_than_one(metadata["Size Z"])
     if "Size T" in metadata:

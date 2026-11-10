@@ -71,6 +71,10 @@ class FieldMappingTest(unittest.TestCase):
         self.assertEqual(metadata_to_form_fields(COMMON_METADATA)["Immersion"], "Oil")
         self.assertEqual(map_nd2_to_remind_fields(ND2_METADATA)["Immersion"], "Oil")
 
+    def test_specialist_modes_fill_specialist_modality(self):
+        mapped = metadata_to_form_fields({"Acquisition Modes": ["TotalInternalReflection"]})
+        self.assertEqual(mapped, {"Specialist modality": "TIRF"})
+
     def test_most_common_value_wins_over_first_image(self):
         overview = {"Objective Model": "10x", "Channel Names": ["BF"]}
         image = {"Objective Model": "63x", "Channel Names": ["DAPI", "GFP"]}
