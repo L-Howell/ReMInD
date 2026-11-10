@@ -264,6 +264,7 @@ python -m unittest discover -s tests
 - `tests/test_readme_io.py` - the ReadMe.txt format, including a file written by v3.0.0
 - `tests/test_field_mapping.py` - which form fields are filled from image metadata, and how several images are combined
 - `tests/test_lif.py` - each image in a LIF file reports its own settings
+- `tests/test_nd2.py` - laser lines are read from the ND2 acquisition settings text
 - `tests/test_form.py` - form behaviour (Clear Form, templates, loading files).
   These open the real window and are skipped where no display is available
 

@@ -46,6 +46,41 @@ def _immersion(objective_name, refractive_index):
     return immersion_from_refractive_index(refractive_index) or "N/A"
 
 
+def _lines_on(description):
+    """
+    Return, for each channel in the acquisition settings text, the list of
+    laser or LED lines that were switched on, as wavelength strings.
+
+    The text has one block per channel, starting at its "Name:" line, with
+    the light sources listed as e.g. "Line:2; ExW:488; Power: 5.0; On".
+    """
+    blocks = re.split(r"^\s*Name:.*$", description, flags=re.MULTILINE)[1:]
+    return [re.findall(r"Line:\d+;\s*ExW:(\d+);[^\n]*?\bOn\b", block) for block in blocks]
+
+
+def _excitation(channels, description):
+    """
+    Return the excitation wavelength of each channel, or "N/A".
+
+    A single line switched on is the most direct record, so it is used when
+    there is one. Otherwise the wavelength the nd2 library derives from the
+    filter set is used, and failing that all the lines that were on, joined
+    with "/" (a white-light source shows as several lines).
+    """
+    lines_on = _lines_on(description)
+    if len(lines_on) != len(channels):
+        lines_on = [[] for _ in channels]
+    wavelengths = []
+    for channel, lines in zip(channels, lines_on):
+        if len(lines) == 1:
+            wavelengths.append(int(lines[0]))
+        elif channel.channel.excitationLambdaNm is not None:
+            wavelengths.append(channel.channel.excitationLambdaNm)
+        else:
+            wavelengths.append("/".join(lines) or "N/A")
+    return wavelengths
+
+
 def _known(value, decimals=None):
     """Return value, rounded if decimals is given, or "N/A" if it is None or empty."""
     if value is None or value == "":
@@ -107,7 +142,7 @@ def extract_nd2_metadata(file_path):
             "Objective Medium": _immersion(getattr(scope, "objectiveName", None), refractive_index),
             "Acquisition Modes": [_imaging_mode(c.microscope.modalityFlags) for c in channels] or ["N/A"],
             "Channel Names": [c.channel.name for c in channels] or ["N/A"],
-            "Excitation Wavelengths": [_known(c.channel.excitationLambdaNm) for c in channels] or ["N/A"],
+            "Excitation Wavelengths": _excitation(channels, description) or ["N/A"],
             "Emission Wavelengths": [_known(c.channel.emissionLambdaNm) for c in channels] or ["N/A"],
             "Pinhole Diameters (um)": [_known(c.microscope.pinholeDiameterUm, 3) for c in channels] or ["N/A"],
             "Zoom": _known(getattr(scope, "zoomMagnification", None)),
