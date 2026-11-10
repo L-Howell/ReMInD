@@ -79,38 +79,18 @@ python src/remind.py
 
 ## ⌨️ Creating the Executable
 
-The repository includes a ready-to-use build script at `build_scripts/build.bat`. To build manually:
+Run `build_scripts/build.bat` from the `build_scripts` folder. It installs the
+build requirements, runs PyInstaller, and writes `dist/ReMInD.exe`. The
+PyInstaller options, and the reasons for them, are in the script.
 
-1. **Activate the conda environment first** (e.g. `conda activate remind-py312`).
-   This matters: activation puts the environment's `Library\bin` on `PATH`, which
-   PyInstaller needs to find the Tcl/Tk (and other) DLLs. Building from a
-   non-activated interpreter produces an `.exe` that fails to launch with
-   `ImportError: DLL load failed while importing _tkinter`.
+With conda, **activate the environment first** (e.g. `conda activate remind-py312`).
+Activation puts the environment's `Library\bin` on `PATH`, which PyInstaller
+needs to find the Tcl/Tk (and other) DLLs. Building from a non-activated
+interpreter produces an `.exe` that fails to launch with
+`ImportError: DLL load failed while importing _tkinter`.
 
-2. **Install the build requirements** (includes PyInstaller):
-   ```bash
-   pip install -r build_scripts/requirements_build.txt
-   ```
-3.  From the project root, run:
-   ```bash
-   pyinstaller --onefile --windowed --name "ReMInD" --noconfirm ^
-       --icon "ReMInD.ico" ^
-       --add-data "ReMInD.ico;." ^
-       --add-data "src/metadata_extractors;metadata_extractors" ^
-       --collect-all ome_types ^
-       --collect-all xsdata ^
-       --collect-all xsdata_pydantic_basemodel ^
-       src/remind.py
-   ```
-   The `--collect-all` flags are required: `ome_types`/`xsdata` load some
-   submodules (e.g. `xsdata_pydantic_basemodel.hooks`) dynamically, which
-   PyInstaller's static analysis misses — without them OME-TIFF files cannot
-   be read. **This is independent of step 1** — the missing-module error
-   occurs even when building inside an activated `remind-py312`; only
-   `--collect-all` resolves it. (`^` is the Windows line continuation; on
-   macOS/Linux use `\` and `:` instead of `;` in `--add-data`.)
-4.  Your single executable will be within the `dist` directory that was created.
-
+You can also download a ready-built `ReMInD.exe` from the artifacts of any
+CI run (see below).
 
 ## ✅ Automated checks
 

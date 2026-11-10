@@ -18,7 +18,6 @@ REM the program can use it for its window.
 pyinstaller --onefile --windowed --name "ReMInD" --noconfirm ^
     --icon "../ReMInD.ico" ^
     --add-data "../ReMInD.ico;." ^
-    --add-data "../src/metadata_extractors;metadata_extractors" ^
     --collect-all ome_types ^
     --collect-all xsdata ^
     --collect-all xsdata_pydantic_basemodel ^

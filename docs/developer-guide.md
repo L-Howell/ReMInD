@@ -7,6 +7,7 @@ remind/
 │   ├── remind.py                  # Main application
 │   ├── readme_io.py               # Reads and writes the ReadMe.txt format
 │   ├── theme.py                   # Colours and fonts of the window
+│   ├── help_text.py               # Text of the Help window
 │   ├── version.py                 # The version number (the only place it is written)
 │   ├── metadata_extractors/
 │   │   ├── czi_metadata.py         # Zeiss CZI metadata extraction
@@ -191,79 +192,24 @@ FORM_FIELDS = [
 ]
 ```
 
-2. **Handle in ReadMe generation**:
-```python
-# Field automatically included in generate_readme()
-# No additional code needed for basic text fields
-```
+The field is saved, loaded and exported with no further code.
 
-3. **Add dropdown options**:
+2. **For a dropdown, give the options**:
 ```python
 ("New Dropdown", ["Option1", "Option2", "Option3"], "Help text"),
 ```
 
-### Customizing the Interface
-
-#### Adding New Buttons
-```python
-# In build_form(), add to buttons list:
-buttons = [
-    # ... existing buttons ...
-    ("New Feature", self.new_feature_method),
-]
-
-def new_feature_method(self):
-    """Implementation of new feature."""
-    pass
-```
-
-#### Custom Field Types
-```python
-# In build_form(), add new elif condition:
-elif label == "Special Field":
-    # Custom widget implementation
-    custom_widget = tk.Scale(parent, from_=0, to=100, orient="horizontal")
-    custom_widget.grid(row=self.row_counter, column=1, sticky="ew")
-    self.entries[label] = custom_widget
-```
-
 ## Building Executables
 
-The repository ships a ready-to-use script at `build_scripts/build.bat`. Run it
-from an **activated** conda environment (e.g. `conda activate remind-py312`).
+Run `build_scripts/build.bat` from the `build_scripts` folder; the executable
+is written to `dist/`. The PyInstaller options are only written there, with
+comments giving the reason for each. CI runs the same script.
 
-> **Always build from an activated conda env.** Activation puts the env's
-> `Library\bin` on `PATH`, which PyInstaller needs to find the Tcl/Tk (and other)
-> DLLs. Building from a non-activated interpreter produces an `.exe` that fails to
-> launch with `ImportError: DLL load failed while importing _tkinter`.
-
-### Using PyInstaller manually
-```bash
-# Install the build requirements (includes PyInstaller)
-pip install -r build_scripts/requirements_build.txt
-
-# Build (run from the project root)
-pyinstaller --onefile --windowed --name "ReMInD" --noconfirm ^
-    --add-data "src/metadata_extractors;metadata_extractors" ^
-    --collect-all ome_types ^
-    --collect-all xsdata ^
-    --collect-all xsdata_pydantic_basemodel ^
-    src/remind.py
-```
-
-Notes:
-- Bundle the whole `metadata_extractors` package with a single `--add-data`
-  (folder, not individual files), so `_common.py` and every extractor are included.
-- The `--collect-all` flags are **required**: `ome_types`/`xsdata` load some
-  submodules (e.g. `xsdata_pydantic_basemodel.hooks`) dynamically, which
-  PyInstaller's static analysis misses. Without them the OME-TIFF extractor import
-  fails and the app exits on startup. This is **independent of the env** — the
-  missing-module error happens even when building inside an activated
-  `remind-py312`; activation only addresses the separate Tcl/Tk DLL issue above.
-- `^` is the Windows line-continuation character; on macOS/Linux use `\` and swap
-  the `--add-data` separator from `;` to `:`.
-
-The single executable is written to the `dist/` directory.
+> **With conda, build from an activated env** (e.g. `conda activate remind-py312`).
+> Activation puts the env's `Library\bin` on `PATH`, which PyInstaller needs to
+> find the Tcl/Tk (and other) DLLs. Building from a non-activated interpreter
+> produces an `.exe` that fails to launch with
+> `ImportError: DLL load failed while importing _tkinter`.
 
 ## Testing
 
@@ -296,31 +242,6 @@ python -m unittest discover -s tests
 The tests do not need image files: the extractor libraries are not exercised,
 so check each format by hand with a real file when changing an extractor.
 
-## Code Style and Standards
-
-### Python Style
-- Follow PEP 8 guidelines
-- Use meaningful variable names
-- Add docstrings to functions
-- Handle exceptions appropriately
-
-### GUI Standards
-- Consistent font usage (`self.app_font`)
-- Proper tooltip implementation
-- Responsive design considerations
-- Accessible color schemes
-
-### Error Handling
-```python
-try:
-    # Risky operation
-    result = some_operation()
-except SpecificException as e:
-    messagebox.showerror("Error", f"Specific error occurred: {e}")
-except Exception as e:
-    messagebox.showerror("Error", f"Unexpected error: {e}")
-```
-
 ## Contributing
 
 ### Workflow
@@ -332,7 +253,7 @@ except Exception as e:
 
 ### Pull Request Guidelines
 - Include description of changes
-- Test on multiple screen resolutions
+- Check the CI run passes
 - Update documentation if needed
 - Add examples for new features
 
@@ -343,52 +264,6 @@ When reporting bugs, include:
 - Steps to reproduce
 - Error messages
 - Sample files (if applicable)
-
-## API Reference
-
-### Core Functions
-
-#### extract_czi_metadata(file_path)
-Extract metadata from CZI files.
-- **Parameters**: `file_path` (str) - Path to CZI file
-- **Returns**: Metadata dictionary
-- **Raises**: Exception if extraction fails
-
-#### extract_lif_metadata(file_path)
-Extract metadata from LIF files.
-- **Parameters**: `file_path` (str) - Path to LIF file  
-- **Returns**: List of metadata dictionaries, one per image, each read from that image's own settings
-- **Raises**: Exception if extraction fails
-
-#### extract_nd2_metadata(file_path)
-Extract metadata from ND2 files.
-- **Parameters**: `file_path` (str) - Path to ND2 file
-- **Returns**: Metadata dictionary
-- **Raises**: Exception if extraction fails
-
-#### extract_oir_metadata(file_path)
-Extract metadata from Olympus/Evident OIR files.
-- **Parameters**: `file_path` (str) - Path to OIR file
-- **Returns**: Metadata dictionary
-- **Raises**: Exception if extraction fails
-
-#### extract_ometiff_metadata(file_path)
-Extract metadata from OME-TIFF files (reads embedded OME-XML via `ome-types`).
-- **Parameters**: `file_path` (str) - Path to .tif/.tiff file
-- **Returns**: List of metadata dictionaries, one per image
-- **Raises**: Exception if the file contains no parseable OME-XML
-
-### Utility Functions
-
-#### combine_image_metadata(per_image)
-Describe all the images of one file in a single metadata dict. A value shared by every image is kept as it is; otherwise each distinct value is listed with the images it applies to.
-- **Parameters**: `per_image` (list[dict]) - one metadata dict per image
-- **Returns**: A single metadata dictionary
-
-#### merge_form_fields(per_image)
-Combine the form field values of several images. Differing values are joined with "; ", except that the earliest date is used and Yes/No becomes "Both".
-- **Parameters**: `per_image` (list[dict]) - `metadata_to_form_fields()` output for each image
-- **Returns**: Dictionary mapping form field labels to values
 
 ## Release Process
 
@@ -415,21 +290,3 @@ that never opens.
 `requirements.txt` gives exact versions so that rebuilding later produces
 the same program. To update a library, change its version there and let CI
 confirm that the tests pass and the build still starts.
-
-## Dependencies
-
-### Core Dependencies
-- **tkinter** - GUI framework (included with Python)
-- **datetime** - Date/time handling
-- **os, glob** - File system operations
-- **json** - JSON export functionality
-
-### Metadata Dependencies
-- **pylibCZIrw** - Zeiss CZI file reading
-- **readlif** - Leica LIF file reading
-- **nd2** - Nikon ND2 file reading
-- **oirfile** - Olympus/Evident OIR file reading
-
-### Development Dependencies
-- **pyinstaller** - Executable building
-- **unittest** - Testing framework

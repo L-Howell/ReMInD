@@ -37,7 +37,7 @@
 2. Copy file to local drive (not network location)
 3. Check file isn't corrupted by opening in ImageJ
 
-#### "Failed to extract LIF metadata"  
+#### "Could not read the LIF file"  
 **Possible Causes**:
 - Encrypted LIF file
 - Incomplete file transfer
@@ -48,7 +48,7 @@
 2. Try different LIF file to test
 3. Check file size - should be >1MB for typical files
 
-#### "Failed to extract ND2 metadata"
+#### "Could not read the ND2 file"
 **Possible Causes**:
 - Very old ND2 format
 - File created with older NIS-Elements
@@ -59,7 +59,7 @@
 2. Try "Save As" to create new ND2
 3. Check ND2 isn't password protected
 
-#### "Failed to extract OIR metadata"
+#### "Could not read the OIR file"
 **Possible Causes**:
 - OIR file created by an unsupported cellSens version
 - Incomplete file transfer or partial write
