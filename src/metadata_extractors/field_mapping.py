@@ -36,16 +36,38 @@ def _first(value):
     return _text(value)
 
 
+def _per_channel(metadata, key, count):
+    """Return the texts of a per-channel list, or blanks if the metadata
+    does not have one entry per channel under that key."""
+    values = metadata.get(key)
+    if isinstance(values, list) and len(values) == count:
+        return [_text(value) for value in values]
+    return [""] * count
+
+
 def _channel_info(metadata):
+    """
+    Describe the channels as "<excitation> (<target>)", in file order, e.g.
+    "405 (DAPI), 561 (Alexa Fluor 568)".
+
+    The target is the dye where the file names one and the channel name
+    otherwise. A part the file does not record is left out, so a channel can
+    come out as just "405" or just "DAPI".
+    """
     names = metadata.get("Channel Names")
-    dyes = metadata.get("Dye Names")
-    if not (isinstance(names, list) and isinstance(dyes, list) and len(names) == len(dyes)):
+    if not isinstance(names, list):
         return _text(names)
-    labelled = []
-    for name, dye in zip(names, dyes):
-        name, dye = _text(name), _text(dye)
-        labelled.append(f"{name} ({dye})" if name and dye and dye != name else name or dye)
-    return ", ".join(label for label in labelled if label)
+    dyes = _per_channel(metadata, "Dye Names", len(names))
+    wavelengths = _per_channel(metadata, "Excitation Wavelengths", len(names))
+    channels = []
+    for name, dye, wavelength in zip(names, dyes, wavelengths):
+        target = dye or _text(name)
+        try:
+            wavelength = str(round(float(wavelength)))  # stored as e.g. 488.0
+        except ValueError:
+            pass  # empty, or several lasers such as "405/488"
+        channels.append(f"{wavelength} ({target})" if wavelength and target else wavelength or target)
+    return ", ".join(channel for channel in channels if channel)
 
 
 def _more_than_one(count):
@@ -65,8 +87,8 @@ def metadata_to_form_fields(metadata):
         metadata (dict): the metadata of one image from any extractor. The
             keys read are "Document Creation Date", "System Name",
             "Objective Model", "Objective Medium", "Acquisition Modes",
-            "Channel Names", "Dye Names", "Size Z" and "Size T". Other keys
-            are ignored.
+            "Channel Names", "Dye Names", "Excitation Wavelengths", "Size Z"
+            and "Size T". Other keys are ignored.
 
     Returns:
         dict: form field label -> text to put in that field. A field is
@@ -82,8 +104,8 @@ def metadata_to_form_fields(metadata):
 
         "Date and time" has an ISO date rewritten as "YYYY-MM-DD HH:MM:SS",
         the format of the form's Now button; other date text is kept as it
-        is. "Channel info" lists the channel names, each followed by its dye
-        in brackets when "Dye Names" gives one that differs from the name.
+        is. "Channel info" gives each channel as "<excitation> (<target>)"
+        in file order; see _channel_info.
 
         "Z-stack" and "Time series" are "Yes" when the size is above 1 and
         "No" otherwise; they are left out only when the size key is missing

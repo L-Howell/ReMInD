@@ -38,6 +38,15 @@ class FieldMappingTest(unittest.TestCase):
         # used, so filling either would record a guess.
         self.assertEqual(metadata_to_form_fields(COMMON_METADATA)["Immersion"], "Oil")
 
+    def test_channels_are_written_as_excitation_and_target(self):
+        metadata = {
+            "Channel Names": ["CH1", "CH2", "T PMT"],
+            "Dye Names": ["DAPI", "N/A", "N/A"],
+            "Excitation Wavelengths": [405.0, 561.4, "N/A"],
+        }
+        self.assertEqual(metadata_to_form_fields(metadata),
+                         {"Channel info": "405 (DAPI), 561 (CH2), T PMT"})
+
     def test_specialist_modes_fill_specialist_modality(self):
         mapped = metadata_to_form_fields({"Acquisition Modes": ["TotalInternalReflection"]})
         self.assertEqual(mapped, {"Specialist modality": "TIRF"})

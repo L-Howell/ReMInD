@@ -101,6 +101,7 @@ def immersion_from_refractive_index(refractive_index):
 _IMMERSION_TERMS = {
     "OIL":          "Oil",
     "WATER":        "Water",
+    "W":            "Water",
     "WATERDIPPING": "Water",
     "AIR":          "Air",
     "DRY":          "Air",
@@ -109,6 +110,9 @@ _IMMERSION_TERMS = {
     "GLYCERIN":     "Glycerol",
     "GLYCERINE":    "Glycerol",
     "SILICONE":     "Silicone",
+    # A multi-immersion objective works with several media, and the file
+    # does not reliably say which was used.
+    "IMM":          "Multi-immersion",
 }
 
 # Keys are OME acquisition-mode names (also used by CZI) plus the short device

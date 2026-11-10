@@ -15,9 +15,9 @@ import datetime
 from readlif.reader import LifFile
 
 try:
-    from ._common import immersion_from_refractive_index, immersion_term, imaging_mode_term
+    from ._common import immersion_term, imaging_mode_term
 except ImportError:  # allow running as a standalone script
-    from _common import immersion_from_refractive_index, immersion_term, imaging_mode_term
+    from _common import immersion_term, imaging_mode_term
 
 
 # DimID values used by Leica for the spatial and time axes.
@@ -92,22 +92,22 @@ def _las_x_settings(hardware):
     # A sequential scan stores one settings block per sequence; the detectors
     # and laser lines in use are the ones recorded there.
     scans = hardware.findall("./LDM_Block_Sequential/LDM_Block_Sequential_List/*") or [definition]
-    detectors, laser_lines, bands = [], [], []
+    detectors, lasers_by_scan, bands = [], [], []
     for scan in scans:
+        # Every line the laser offers is listed; the ones in use have power.
+        lasers = [line.get("LaserLine") for line in scan.findall("./AotfList/Aotf/LaserLineSetting")
+                  if float(line.get("IntensityDev") or 0) > 0]
+        lasers_by_scan.append(lasers)
         ranges = {b.get("Channel"): (b.get("LeftWorld"), b.get("RightWorld"))
                   for b in scan.findall("./Spectro/MultiBand")}
         for detector in scan.findall("./DetectorList/Detector"):
             if detector.get("IsActive") != "1":
                 continue
             dye = _clean_dye(detector.get("DyeName") or "")
-            detectors.append((detector.get("Name") or "N/A", dye))
+            detectors.append((detector.get("Name") or "N/A", dye, lasers))
             low, high = ranges.get(detector.get("Channel"), (None, None))
             if low and high:
                 bands.append(f"{round(float(low))}-{round(float(high))}")
-        for line in scan.findall("./AotfList/Aotf/LaserLineSetting"):
-            # Every line the laser offers is listed; the ones in use have power.
-            if float(line.get("IntensityDev") or 0) > 0 and line.get("LaserLine") not in laser_lines:
-                laser_lines.append(line.get("LaserLine"))
 
     return {
         "software": hardware.get("Software"),
@@ -124,7 +124,7 @@ def _las_x_settings(hardware):
         "pinhole m": definition.get("Pinhole"),
         "zoom": definition.get("Zoom"),
         "detectors": detectors,
-        "laser lines": laser_lines,
+        "lasers by scan": lasers_by_scan,
         "bands": bands,
     }
 
@@ -135,7 +135,7 @@ def _las_af_settings(hardware_list):
                for r in hardware_list.findall(".//ScannerSettingRecord")}
     filters = {(r.get("ClassName"), r.get("Attribute")): r.get("Variant")
                for r in hardware_list.findall(".//FilterSettingRecord")}
-    detectors = [(r.get("ObjectName"), "")
+    detectors = [(r.get("ObjectName"), "", [])
                  for r in hardware_list.findall(".//FilterSettingRecord")
                  if r.get("ClassName") == "CDetectionUnit" and r.get("Attribute") == "State"
                  and r.get("Variant") == "Active"]
@@ -152,23 +152,48 @@ def _las_af_settings(hardware_list):
     }
 
 
-def _channel_names(image, detectors):
+def _objective_medium(objective_name):
+    """Return the immersion medium given in a Leica objective name such as
+    "HCX PL APO CS 63.0x1.40 OIL UV", or "N/A" if the name gives none."""
+    for word in (objective_name or "").split():
+        if immersion_term(word) != word:
+            return immersion_term(word)
+    return "N/A"
+
+
+def _channels(image, settings):
     """
-    Return one name per channel of the image: the dye if one was set, else
-    the detector, else the display colour (e.g. "Green").
+    Describe the channels of an image.
+
+    Returns:
+        tuple: (names, dyes, excitation), each with one entry per channel.
+          - names: the detector, or the display colour (e.g. "Green") when
+            the detector is not known.
+          - dyes: the dye set in LAS X, or "N/A".
+          - excitation: the laser line in nm, or "N/A". The file lists the
+            lasers used in each scan, not which laser goes with which
+            detector, so a line is given only when its scan used one laser.
     """
     channels = image.findall("./ImageDescription/Channels/ChannelDescription")
-    names = []
+    detectors = settings.get("detectors", [])
+    lasers_by_scan = settings.get("lasers by scan", [])
+    names, dyes, excitation = [], [], []
     for index, channel in enumerate(channels):
         properties = {p.findtext("Key"): p.findtext("Value") for p in channel.findall("ChannelProperty")}
-        dye = _clean_dye(properties.get("DyeName") or "")
         detector = properties.get("DetectorName") or ""
-        # Older files do not label the channels, but the active detectors
-        # correspond to them when there are equally many of each.
-        if not (dye or detector) and len(detectors) == len(channels):
-            detector, dye = detectors[index]
-        names.append(dye or detector or channel.get("LUTName") or "N/A")
-    return names
+        dye = _clean_dye(properties.get("DyeName") or "")
+        lasers = []
+        if properties.get("SequentialSettingIndex", "").isdigit():
+            scan = int(properties["SequentialSettingIndex"])
+            lasers = lasers_by_scan[scan] if scan < len(lasers_by_scan) else []
+        elif len(detectors) == len(channels):
+            # Older files do not label the channels, but the active detectors
+            # correspond to them when there are equally many of each.
+            detector, dye, lasers = detectors[index]
+        names.append(detector or channel.get("LUTName") or "N/A")
+        dyes.append(dye or "N/A")
+        excitation.append(lasers[0] if len(lasers) == 1 else "N/A")
+    return names, dyes, excitation
 
 
 def _image_metadata(element):
@@ -186,12 +211,12 @@ def _image_metadata(element):
         value = settings.get(key)
         return " ".join(value.split()) if value and value.strip() else "N/A"
 
-    # "IMM" marks a multi-immersion objective; the refractive index that was
-    # set says which medium was used.
     medium = setting("immersion")
-    if medium in ("IMM", "N/A"):
-        medium = immersion_from_refractive_index(settings.get("refractive index")) or medium
+    if medium == "N/A":
+        medium = _objective_medium(settings.get("objective"))
 
+    names, dyes, excitation = _channels(image, settings)
+    laser_lines = list(dict.fromkeys(line for lasers in settings.get("lasers by scan", []) for line in lasers))
     dimensions = _dimensions(image)
     metadata = {
         "Image Name": element.get("Name") or "N/A",
@@ -206,9 +231,10 @@ def _image_metadata(element):
         "Objective Magnification": _number(settings.get("magnification")),
         "Objective Refractive Index": _number(settings.get("refractive index")),
         "Objective Medium": immersion_term(medium),
-        "Channel Names": _channel_names(image, settings.get("detectors", [])),
-        "Detectors": [name for name, _ in settings.get("detectors", [])] or ["N/A"],
-        "Excitation Wavelengths (nm)": settings.get("laser lines") or ["N/A"],
+        "Channel Names": names,
+        "Dye Names": dyes,
+        "Excitation Wavelengths": excitation,
+        "Laser Lines (nm)": laser_lines or ["N/A"],
         "Emission Wavelength Range (nm)": settings.get("bands") or ["N/A"],
         "Pinhole Size (Airy Units)": _number(settings.get("pinhole airy")),
         "Pinhole Diameter (um)": _number(float(settings["pinhole m"]) * 1e6)

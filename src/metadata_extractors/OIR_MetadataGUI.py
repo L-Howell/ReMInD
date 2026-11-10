@@ -180,7 +180,7 @@ def extract_oir_metadata(file_path):
                     # can use several lasers.
                     lasers = [m.group(1) for m in
                               (re.search(r'LD(\d+)', el.text or '') for el in ch_el.findall('laserDataId')) if m]
-                    ex_wl = int(lasers[0]) if len(lasers) == 1 else ', '.join(lasers) or 'N/A'
+                    ex_wl = int(lasers[0]) if len(lasers) == 1 else '/'.join(lasers) or 'N/A'
 
                     ph = ch_el.findtext('.//pinholeDiameter')
                     ch_data.append({

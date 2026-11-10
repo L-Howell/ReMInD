@@ -13,8 +13,8 @@ PROJECT = """
 <LMSDataContainerHeader><Element Name="Project"><Children>
   <Element Name="Overview"><Data><Image>
     <Attachment Name="HardwareSetting" SystemTypeName="STELLARIS 5" DataSourceTypeName="Confocal">
-      <ATLConfocalSettingDefinition ObjectiveName="HC PL APO  10x/0.40 DRY" Immersion="DRY"
-          NumericalAperture="0.4" Magnification="10">
+      <ATLConfocalSettingDefinition ObjectiveName="HC PL APO  20x/0.75 IMM" Immersion="IMM"
+          NumericalAperture="0.75" Magnification="20" RefractionIndex="1.518">
         <DetectorList><Detector Name="HyD S 1" Channel="1" IsActive="1" DyeName="Leica/DAPI."/></DetectorList>
         <AotfList><Aotf><LaserLineSetting LaserLine="405" IntensityDev="2"/>
                         <LaserLineSetting LaserLine="488" IntensityDev="0"/></Aotf></AotfList>
@@ -58,17 +58,21 @@ class LifTest(unittest.TestCase):
         # was given the first image's objective and all images' channels.
         overview, stack = [_image_metadata(e) for e in _image_elements(ET.fromstring(PROJECT))]
 
-        self.assertEqual(overview["Objective Model"], "HC PL APO 10x/0.40 DRY")
-        self.assertEqual(overview["Objective Medium"], "Air")
-        self.assertEqual(overview["Channel Names"], ["DAPI"])
-        self.assertEqual(overview["Excitation Wavelengths (nm)"], ["405"])
+        self.assertEqual(overview["Objective Model"], "HC PL APO 20x/0.75 IMM")
+        # The refractive index is not taken as proof of the medium used.
+        self.assertEqual(overview["Objective Medium"], "Multi-immersion")
+        self.assertEqual(overview["Dye Names"], ["DAPI"])
+        self.assertEqual(overview["Excitation Wavelengths"], ["405"])
         self.assertEqual(overview["Size Z"], 1)
         self.assertEqual(overview["Pixel Size X (um)"], 10)
 
         self.assertEqual(stack["Objective Model"], "HC PL APO 63x/1.40 OIL")
         self.assertEqual(stack["Objective Medium"], "Oil")
-        self.assertEqual(stack["Channel Names"], ["DAPI", "HyD S 2"])
-        self.assertEqual(stack["Excitation Wavelengths (nm)"], ["405", "488"])
+        self.assertEqual(stack["Channel Names"], ["HyD S 1", "HyD S 2"])
+        self.assertEqual(stack["Dye Names"], ["DAPI", "N/A"])
+        # Two lasers in one scan: the file does not say which detector saw which.
+        self.assertEqual(stack["Excitation Wavelengths"], ["N/A", "N/A"])
+        self.assertEqual(stack["Laser Lines (nm)"], ["405", "488"])
         self.assertEqual(stack["Size Z"], 11)
         self.assertEqual(stack["Pixel Size Z (um)"], 0.5)
 

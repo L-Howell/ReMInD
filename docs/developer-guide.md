@@ -115,7 +115,7 @@ reads these keys:
 | `Objective Model` | Objective |
 | `Objective Medium` | Immersion |
 | `Acquisition Modes` | Imaging mode, or Specialist modality for STED/TIRF/FLIM/SoRa |
-| `Channel Names`, `Dye Names` | Channel info |
+| `Channel Names`, `Dye Names`, `Excitation Wavelengths` | Channel info, as `<excitation> (<target>)` per channel |
 | `Size Z` | Z-stack (Yes/No) |
 | `Size T` | Time series (Yes/No) |
 

@@ -76,14 +76,19 @@ both the `ReadMe.txt` and the JSON export, and is reloaded when you open a saved
 - Date and time of acquisition
 - Microscope name and model
 - Objective lens specifications
-- Channel information and labels
+- Channel information, written as excitation wavelength and target for each
+  channel in file order, e.g. `405 (DAPI), 561 (Alexa Fluor 568)`. The target
+  is the dye set in the acquisition software, or the channel name. Check it
+  and replace it with your own label where needed; a part the file does not
+  record is left out
 - Immersion and imaging mode
 - Whether a Z-stack and a time series were acquired
 - Software and system information (shown in the metadata panel)
 
 Only fields the file has a value for are changed; anything else you have typed
 is kept. The file records an oil objective simply as "Oil", so pick `Oil-23`
-or `Oil-37` yourself if you know which was used.
+or `Oil-37` yourself if you know which was used. A Leica multi-immersion
+objective is filled in as "Multi-immersion"; replace it with the medium you used.
 
 ### 3. File Operations
 

@@ -71,7 +71,7 @@ FORM_FIELDS = [
     ("Imaging mode", ["Confocal", "Widefield", "Spinning Disc Confocal", "Lightsheet", "Lattice Lightsheet", "2Photon"], "Select the imaging mode used."),
     ("Specialist modality", ["Airyscan", "STED", "FLIM", "SoRa", "TIRF"], "Select any specialist imaging modality used."),
     ("Environmental Conditions", "", "e.g. Temperature and CO2"),
-    ("Channel info", "", "Channel names, stains or labels used."),
+    ("Channel info", "", "Excitation wavelength and target of each channel, in order of acquisition,\ne.g. 405 (DAPI), 488 (GFP-tubulin), 561 (mCherry)"),
     ("Z-stack", ["Yes", "No", "Both"], "Was a Z-stack acquired?"),
     ("Time series", ["Yes", "No", "Both"], "Was a time-lapse series acquired?"),
     ("Image format", "", "Image file format (e.g., .czi, .tif, .lif, .oir)."),
