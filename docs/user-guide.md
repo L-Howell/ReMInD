@@ -104,9 +104,16 @@ objective is filled in as "Multi-immersion"; replace it with the medium you used
 
 #### Load Existing ReadMe
 1. Click **"Load ReadMe.txt"**
-2. Select a previously generated file
+2. Select a previously generated ReadMe.txt, or a JSON export
 3. Form repopulates for editing/updating
 4. The extracted metadata is replaced by the file's, and cleared if the file has none
+
+ReadMe files written by version 3.0.0 or earlier may not load completely: the
+Filename Key is written differently and one field has been renamed.
+
+#### Unsaved changes
+**Clear Form**, **Load ReadMe.txt** and closing the window ask before
+discarding changes that have not been saved as a ReadMe.txt or JSON export.
 
 #### Export as JSON
 1. Click **"Export as JSON"**

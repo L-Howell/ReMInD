@@ -7,12 +7,13 @@ remind/
 │   ├── remind.py                  # Main application
 │   ├── readme_io.py               # Reads and writes the ReadMe.txt format
 │   ├── theme.py                   # Colours and fonts of the window
+│   ├── version.py                 # The version number (the only place it is written)
 │   ├── metadata_extractors/
-│   │   ├── CZI_MetadataGUI.py      # Zeiss CZI metadata extraction
-│   │   ├── LIF_MetadataGUI.py      # Leica LIF metadata extraction
-│   │   ├── Nd2_v2a.py              # Nikon ND2 metadata extraction
-│   │   ├── OIR_MetadataGUI.py      # Olympus/Evident OIR metadata extraction
-│   │   ├── OMETiff_MetadataGUI.py  # OME-TIFF metadata extraction
+│   │   ├── czi_metadata.py         # Zeiss CZI metadata extraction
+│   │   ├── lif_metadata.py         # Leica LIF metadata extraction
+│   │   ├── nd2_metadata.py         # Nikon ND2 metadata extraction
+│   │   ├── oir_metadata.py         # Olympus/Evident OIR metadata extraction
+│   │   ├── ome_tiff_metadata.py    # OME-TIFF metadata extraction
 │   │   ├── field_mapping.py        # Turns extracted metadata into form field values
 │   │   └── _common.py              # Shared helpers (combining images, term lookup)
 ├── tests/                         # Automated tests
@@ -43,7 +44,7 @@ python src/remind.py
 
 ### Main Components
 
-#### REMBIGUI Class
+#### RemindApp Class
 - **Purpose**: Main application window and logic
 - **Key Methods**:
   - `__init__()` - Window setup and initialization
@@ -54,11 +55,11 @@ python src/remind.py
   - `export_as_json()` - JSON export functionality
 
 #### Metadata Extractors
-- **CZI_MetadataGUI.py** - Handles Zeiss CZI files using `pylibCZIrw` library
-- **LIF_MetadataGUI.py** - Handles Leica LIF files using `readlif` library  
-- **Nd2_v2a.py** - Handles Nikon ND2 files using `nd2` library
-- **OIR_MetadataGUI.py** - Handles Olympus/Evident OIR files using `oirfile` library
-- **OMETiff_MetadataGUI.py** - Handles OME-TIFF files using `ome-types` library
+- **czi_metadata.py** - Handles Zeiss CZI files using `pylibCZIrw` library
+- **lif_metadata.py** - Handles Leica LIF files using `readlif` library  
+- **nd2_metadata.py** - Handles Nikon ND2 files using `nd2` library
+- **oir_metadata.py** - Handles Olympus/Evident OIR files using `oirfile` library
+- **ome_tiff_metadata.py** - Handles OME-TIFF files using `ome-types` library
 - **field_mapping.py** - `metadata_to_form_fields()` turns an extractor's output into form field values
 - **_common.py** - Shared helpers: `combine_image_metadata()` for files that hold several images, and `immersion_term()` / `imaging_mode_term()` for translating file values into the form's terms
 
@@ -99,12 +100,21 @@ the format name and a function that returns one metadata dict per image in
 the file.
 
 ```python
+def _read_czi(path):
+    from metadata_extractors.czi_metadata import extract_czi_metadata
+    return [extract_czi_metadata(path)]
+
 IMAGE_READERS = {
-    ".czi": ("CZI", lambda path: [extract_metadata(path)]),
-    ".lif": ("LIF", extract_lif_metadata),
+    ".czi": ("CZI", _read_czi),
+    ".lif": ("LIF", _read_lif),
     ...
 }
 ```
+
+Each reader imports its library inside the function. The program therefore
+starts without loading any of them, and a library that fails to load only
+stops its own format from being read (the user sees the error in a message
+box). PyInstaller still finds imports written this way.
 
 `load_image_file()` looks up the extension and reads the file. It then:
 1. turns each image's metadata into form field values with
@@ -141,7 +151,7 @@ typed with a placeholder.
 
 1. **Create extractor module** that returns a dict using the keys above:
 ```python
-# src/metadata_extractors/NEW_MetadataGUI.py
+# src/metadata_extractors/new_metadata.py
 def extract_new_metadata(file_path):
     """Extract metadata from NEW format files."""
     return {"System Name": ..., "Objective Model": ..., "Size Z": ...}
@@ -153,11 +163,13 @@ per image, each with an `"Image Name"`.
 
 2. **Add it to `IMAGE_READERS`** in `remind.py`:
 ```python
-from metadata_extractors.NEW_MetadataGUI import extract_new_metadata
+def _read_new(path):
+    from metadata_extractors.new_metadata import extract_new_metadata
+    return [extract_new_metadata(path)]
 
 IMAGE_READERS = {
     # ... existing formats ...
-    ".new": ("NEW", lambda path: [extract_new_metadata(path)]),
+    ".new": ("NEW", _read_new),
 }
 ```
 
@@ -274,11 +286,11 @@ The single executable is written to the `dist/` directory.
 python -m unittest discover -s tests
 ```
 
-- `tests/test_readme_io.py` - the ReadMe.txt format, including a file written by v3.0.0
+- `tests/test_readme_io.py` - the ReadMe.txt and JSON formats read back what was written
 - `tests/test_field_mapping.py` - which form fields are filled from image metadata, and how several images are combined
 - `tests/test_lif.py` - each image in a LIF file reports its own settings
 - `tests/test_nd2.py` - laser lines are read from the ND2 acquisition settings text
-- `tests/test_form.py` - form behaviour (Clear Form, templates, loading files, examples in empty fields).
+- `tests/test_form.py` - form behaviour (Clear Form, unsaved changes, templates, loading files, examples in empty fields).
   These open the real window and are skipped where no display is available
 
 The tests do not need image files: the extractor libraries are not exercised,
@@ -336,7 +348,7 @@ When reporting bugs, include:
 
 ### Core Functions
 
-#### extract_metadata(file_path)
+#### extract_czi_metadata(file_path)
 Extract metadata from CZI files.
 - **Parameters**: `file_path` (str) - Path to CZI file
 - **Returns**: Metadata dictionary
@@ -380,12 +392,29 @@ Combine the form field values of several images. Differing values are joined wit
 
 ## Release Process
 
-1. **Version Update**: Update `APP_VERSION` in source code
-2. **Testing**: Run manual test checklist
-3. **Documentation**: Update README and changelog  
-4. **Build**: Create executable with PyInstaller
-5. **GitHub Release**: Create release with executable attachment
-6. **Announcement**: Notify users of new version
+1. **Version Update**: Change `VERSION` and `RELEASE_DATE` in `src/version.py`.
+   It is the only place the version is written; the window title, the ReadMe
+   header and the Help text read it from there
+2. **Checks**: Push and wait for the CI run to pass (tests, build, and the
+   check that the built executable starts)
+3. **Manual testing**: Run the manual test checklist on the executable from
+   the CI run's artifacts
+4. **GitHub Release**: Create a release and attach that executable
+5. **Announcement**: Notify users of new version
+
+### Continuous integration
+`.github/workflows/ci.yml` runs on every push, on Windows. It installs the
+pinned requirements, runs the tests, runs `build_scripts/build.bat`, and then
+runs `ReMInD.exe --check check.log`. `--check` imports the library of every
+file format and builds the window, then exits with code 1 if anything failed
+and writes the reasons to the log file. A windowed program has no console, so
+without this a library missing from the build would only show up as a window
+that never opens.
+
+### Pinned versions
+`requirements.txt` gives exact versions so that rebuilding later produces
+the same program. To update a library, change its version there and let CI
+confirm that the tests pass and the build still starts.
 
 ## Dependencies
 

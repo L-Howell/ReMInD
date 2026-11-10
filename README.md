@@ -1,11 +1,10 @@
 # ReMInD
 # 🧬 Recommended Metadata Interface for Documentation
 
-**Version**: 3.0.0  
+**Version**: see [`src/version.py`](src/version.py) or the [releases](https://github.com/L-Howell/ReMInD/releases)  
 **Maintainer**: Liam Howell, Sydney Microscopy and Microanalysis, The University of Sydney  
 **Original author**: Dr Nicholas Condon (n.condon@uq.edu.au), Institute for Molecular Bioscience (IMB) Microscopy Facility, The University of Queensland  
-**License**: GNU GPL v3.0  
-**Date**: June 2026
+**License**: GNU GPL v3.0
 
 ---
 
@@ -95,6 +94,8 @@ The repository includes a ready-to-use build script at `build_scripts/build.bat`
 3.  From the project root, run:
    ```bash
    pyinstaller --onefile --windowed --name "ReMInD" --noconfirm ^
+       --icon "ReMInD.ico" ^
+       --add-data "ReMInD.ico;." ^
        --add-data "src/metadata_extractors;metadata_extractors" ^
        --collect-all ome_types ^
        --collect-all xsdata ^
@@ -103,15 +104,22 @@ The repository includes a ready-to-use build script at `build_scripts/build.bat`
    ```
    The `--collect-all` flags are required: `ome_types`/`xsdata` load some
    submodules (e.g. `xsdata_pydantic_basemodel.hooks`) dynamically, which
-   PyInstaller's static analysis misses — without them the OME-TIFF extractor
-   import fails and the app exits on startup. **This is independent of step 1** —
-   the missing-module error occurs even when building inside an activated
-   `remind-py312`; only `--collect-all` resolves it. (`^` is the Windows line
-   continuation; on macOS/Linux use `\` and `:` instead of `;` in `--add-data`.)
+   PyInstaller's static analysis misses — without them OME-TIFF files cannot
+   be read. **This is independent of step 1** — the missing-module error
+   occurs even when building inside an activated `remind-py312`; only
+   `--collect-all` resolves it. (`^` is the Windows line continuation; on
+   macOS/Linux use `\` and `:` instead of `;` in `--add-data`.)
 4.  Your single executable will be within the `dist` directory that was created.
 
 
+## ✅ Automated checks
+
+Every push runs [`.github/workflows/ci.yml`](.github/workflows/ci.yml) on Windows:
+the tests, the build script, and a check that the built `ReMInD.exe` starts
+and can load every metadata library. The executable is attached to the run
+as an artifact.
+
 ## 📦 Packaged Executable
 - The `ReMInD.exe` file is fully self contained for Windows 11
-- If using the custom icon file (provided) you will need to create a shortcut to `ReMInD.exe` to use the custom icon in Windows 11
+- The icon is built into `ReMInD.exe`
 

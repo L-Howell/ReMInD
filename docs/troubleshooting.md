@@ -17,7 +17,8 @@
 1. Check Windows Defender/antivirus - may block unknown executables
 2. Right-click → "Run as administrator"
 3. Download latest version from GitHub releases
-4. Try running from command prompt to see error messages
+4. Run `ReMInD.exe --check check.log` from a command prompt, then open
+   `check.log`: it lists any metadata library the program could not load
 
 #### Missing DLL errors
 **Problem**: "VCRUNTIME140.dll not found" or similar
@@ -25,7 +26,7 @@
 
 ### Metadata Extraction Issues
 
-#### "Failed to extract CZI metadata"
+#### "Could not read the CZI file"
 **Possible Causes**:
 - Corrupted CZI file
 - Very old CZI format version
