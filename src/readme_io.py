@@ -57,7 +57,7 @@ def format_readme(header, fields, filename_key=(), metadata=None):
         if label in MULTILINE_FIELDS:
             lines.append(f"{label}:\n---\n{value}\n---")
         else:
-            lines.append(f"{label}: {value}")
+            lines.append(f"{label}: {value}".rstrip())
 
     if filename_key:
         lines.append("\n# Filename Key")
