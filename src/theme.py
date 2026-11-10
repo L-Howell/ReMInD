@@ -23,12 +23,12 @@ import tkinter.ttk as ttk
 #   on accent  text on top of the accent colour
 COLOURS = {
     "dark": {
-        "page": "#1b1916", "band": "#27231f", "card": "#24211d", "field": "#322e28", "hover": "#3d3831",
-        "border": "#4a443d", "text": "#fbf8f3", "muted": "#9a948b", "accent": "#f2b24a", "on accent": "#1b1916",
+        "page": "#1a1a1a", "band": "#242424", "card": "#222222", "field": "#2e2e2e", "hover": "#3a3a3a",
+        "border": "#454545", "text": "#f5f5f5", "muted": "#959595", "accent": "#f2b24a", "on accent": "#1a1a1a",
     },
     "light": {
-        "page": "#f1ede6", "band": "#fbfaf7", "card": "#fbfaf7", "field": "#ffffff", "hover": "#ebe6dd",
-        "border": "#d3ccc0", "text": "#2a2620", "muted": "#7a746a", "accent": "#a65b00", "on accent": "#ffffff",
+        "page": "#f0f0f0", "band": "#fafafa", "card": "#fafafa", "field": "#ffffff", "hover": "#e8e8e8",
+        "border": "#d0d0d0", "text": "#242424", "muted": "#707070", "accent": "#a65b00", "on accent": "#ffffff",
     },
 }
 
