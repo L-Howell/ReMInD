@@ -16,15 +16,13 @@ and is maintained independently from v3.0.0 onward by Liam Howell.
 """
 
 import ctypes
-import tkinter as tk
-from tkinter import filedialog, messagebox
 import datetime
-import os
 import glob
-import tkinter.ttk as ttk
+import os
 import sys
-
-current_dir = os.path.dirname(os.path.abspath(__file__))
+import tkinter as tk
+import tkinter.ttk as ttk
+from tkinter import filedialog, messagebox
 
 from metadata_extractors._common import combine_image_metadata
 from metadata_extractors.field_mapping import metadata_to_form_fields, merge_form_fields
@@ -32,6 +30,8 @@ from readme_io import MULTILINE_FIELDS, format_json, format_readme, parse_json, 
 from help_text import HELP_TEXT
 from theme import BODY_FONT, HEADING_FONT, HINT_COLOUR, apply_theme
 from version import RELEASE_DATE, VERSION
+
+current_dir = os.path.dirname(os.path.abspath(__file__))
 
 APP_NAME = "ReMInD"
 APP_AUTHOR = "Nicholas Condon, IMB Microscopy, The University of Queensland, Brisbane Australia; Liam Howell, Sydney Microscopy and Microanalysis, The University of Sydney, Sydney Australia"
@@ -571,16 +571,20 @@ class RemindApp:
         path = filedialog.askopenfilename(title="Select a ReadMe.txt or a JSON export",
                                           filetypes=[("ReadMe or JSON export", "*.txt *.json")])
         if path and self.may_discard_changes():
-            self.parse_readme_file(path)
+            self.load_readme_file(path)
+
+    def empty_form(self):
+        for label, _, _ in self.fields:
+            self.set_field(label, "")
+        self.mark_filled_from_image([])
+        self.fill_form({}, [], {})
 
     def clear_form(self):
         """Empty the form, then put back the template's values if a template
         was loaded at startup. Asks first if there are unsaved changes."""
         if not self.may_discard_changes():
             return
-        for label, _, _ in self.fields:
-            self.set_field(label, "")
-        self.mark_filled_from_image([])
+        self.empty_form()
         self.fill_form(self.template_fields, self.template_filename_key, {})
         self.mark_saved()
         self.status_label.configure(
@@ -633,7 +637,7 @@ class RemindApp:
 
     def fill_form(self, fields, filename_key, metadata):
         """
-        Put the content of a ReadMe.txt into the form.
+        Put the content of a ReadMe.txt or template into the form.
 
         Fields with a value replace what is in the form; fields that are
         empty or absent are left as they are. The Filename Key and the
@@ -644,17 +648,29 @@ class RemindApp:
         self._reset_condition_rows(filename_key)
         self.show_metadata_in_window(metadata)
 
-    def parse_readme_file(self, path):
+    def load_readme_file(self, path):
+        """
+        Replace the content of the form with that of a ReadMe.txt or JSON
+        export, including the template's values.
+
+        A file that cannot be read, or that holds nothing ReMInD recognises
+        (some other text file, say), shows a message and changes nothing.
+        """
         content = self.read_readme_file(path)
-        if content:
-            self.fill_form(*content)
-            self.mark_saved()
-            self.status_label.configure(text=f"Loaded {os.path.basename(path)}.")
+        if content is None:
+            return
+        if not any(content):
+            messagebox.showinfo("Nothing to load", f"{os.path.basename(path)} holds no ReMInD fields.")
+            return
+        self.empty_form()
+        self.fill_form(*content)
+        self.mark_saved()
+        self.status_label.configure(text=f"Loaded {os.path.basename(path)}.")
 
     def load_template(self, path):
         """Load a template into the form and keep its content for Clear Form."""
         content = self.read_readme_file(path)
-        if not content:
+        if content is None:
             return
         # The metadata is dropped: a template made by renaming a real ReadMe
         # still carries that experiment's image metadata, which must not be

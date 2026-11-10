@@ -95,13 +95,25 @@ class FormTest(unittest.TestCase):
         self.assertNotIn("LSM 980", self.app.readme_text())
         self.assertNotIn("Extracted Image Metadata", self.app.readme_text())
 
-    def test_loading_a_readme_replaces_image_metadata(self):
+    def test_loading_a_readme_replaces_the_whole_form(self):
+        # Anything left over from the experiment that was in the form would
+        # be saved as part of the loaded one.
         self.app.load_image_file("first_experiment.czi")
+        self.app.set_field("Sample Carrier", "8-well ibidi")
         path = self.write_file("second_ReadME.txt", "Experiment name: Second\n")
 
-        self.app.parse_readme_file(path)
+        self.app.load_readme_file(path)
 
+        self.assertEqual({label: value for label, value in self.app.field_values() if value},
+                         {"Experiment name": "Second"})
         self.assertNotIn("Extracted Image Metadata", self.app.readme_text())
+
+    def test_a_file_that_is_not_a_readme_leaves_the_form_alone(self):
+        self.app.set_field("Experiment name", "Not saved yet")
+
+        self.app.load_readme_file(self.write_file("shopping.txt", "milk\neggs\n"))
+
+        self.assertEqual(self.field("Experiment name"), "Not saved yet")
 
     def test_clear_form_returns_to_the_template(self):
         path = self.write_file("Confocal5_ReadME_template.txt",
