@@ -61,8 +61,8 @@ class FieldMappingTest(unittest.TestCase):
         self.assertEqual(metadata_to_form_fields(metadata), {})
         self.assertEqual(
             map_nd2_to_remind_fields({"Objective Medium": "N/A", "Channel Names": ["N/A"],
-                                      "Z Slices": "3", "Time Points": "1"}),
-            {"Z-stack": "Yes", "Time series": "No"},
+                                      "Z Slices": "N/A", "Time Points": "N/A"}),
+            {},
         )
 
     def test_oil_is_not_given_a_temperature_grade(self):

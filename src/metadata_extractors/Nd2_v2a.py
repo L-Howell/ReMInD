@@ -251,7 +251,8 @@ def map_nd2_to_remind_fields(nd2_metadata):
         derived from the refractive index: below 1.1 is "Air", below 1.4 is
         "Water", above 1.5 is "Oil". An index between 1.4 and 1.5 could be
         glycerol or silicone, so the field is left out. A non-numeric value
-        is passed through as text.
+        is passed through as text. "Z-stack" and "Time series" are left out
+        when the number of slices or time points could not be read.
     """
     def known(key):
         value = str(nd2_metadata.get(key, "")).strip()
@@ -267,16 +268,21 @@ def map_nd2_to_remind_fields(nd2_metadata):
     except ValueError:
         pass
 
-    return metadata_to_form_fields({
+    common = {
         "Document Creation Date": known("Document Creation Date"),
         "System Name":            known("System Name"),
         "Objective Model":        objective,
         "Objective Medium":       medium,
         "Acquisition Modes":      known("Modality"),
         "Channel Names":          nd2_metadata.get("Channel Names"),
-        "Size Z":                 known("Z Slices"),
-        "Size T":                 known("Time Points"),
-    })
+    }
+    # Unlike CZI and OIR, an ND2 size of "N/A" means it could not be read,
+    # not that the dimension has a single plane.
+    if known("Z Slices"):
+        common["Size Z"] = known("Z Slices")
+    if known("Time Points"):
+        common["Size T"] = known("Time Points")
+    return metadata_to_form_fields(common)
 
 # Example usage function for testing
 def test_nd2_extraction(file_path):
