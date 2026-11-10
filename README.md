@@ -4,7 +4,7 @@
 
 **Recommended Metadata Interface for Documentation**
 
-A small Windows program that promotes FAIR data management practices in microscopy<br>
+A small Windows program that supports [FAIR](https://www.go-fair.org/fair-principles/) data management in microscopy<br>
 by making it easy to record metadata at the point of acquisition.
 
 [![CI](https://github.com/L-Howell/ReMInD/actions/workflows/ci.yml/badge.svg)](https://github.com/L-Howell/ReMInD/actions/workflows/ci.yml)
