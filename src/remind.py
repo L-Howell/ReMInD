@@ -105,12 +105,12 @@ def _read_lif(path):
 # File extension -> (format name, function returning the metadata dict for a
 # file, function turning that dict into form field values).
 IMAGE_READERS = {
-    ".czi":  ("CZI", lambda path: extract_metadata(path)[0], metadata_to_form_fields),
+    ".czi":  ("CZI", extract_metadata, metadata_to_form_fields),
     ".lif":  ("LIF", _read_lif, metadata_to_form_fields),
     ".nd2":  ("ND2", extract_nd2_metadata, map_nd2_to_remind_fields),
-    ".oir":  ("OIR", lambda path: extract_oir_metadata(path)[0], metadata_to_form_fields),
-    ".tif":  ("OME-TIFF", lambda path: extract_ometiff_metadata(path)[0], metadata_to_form_fields),
-    ".tiff": ("OME-TIFF", lambda path: extract_ometiff_metadata(path)[0], metadata_to_form_fields),
+    ".oir":  ("OIR", extract_oir_metadata, metadata_to_form_fields),
+    ".tif":  ("OME-TIFF", extract_ometiff_metadata, metadata_to_form_fields),
+    ".tiff": ("OME-TIFF", extract_ometiff_metadata, metadata_to_form_fields),
 }
 
 
@@ -218,11 +218,6 @@ class REMBIGUI:
         # Start in dark mode by default (user can switch with the toggle).
         self.toggle_dark_mode()
         self.root.after(200, self.select_and_load_template)
-
-    def check_rdm_connectivity(self):
-        # This method is no longer needed, but keeping it for backward compatibility
-        # Remove this method entirely if you want
-        pass
 
     def build_form(self):
         # Use self.form_root instead of self.root for all grid operations
@@ -460,9 +455,6 @@ class REMBIGUI:
                                                  title="Save ReadMe.txt as")
         if not save_path:
             return
-        if os.path.exists(save_path):
-            if not messagebox.askyesno("Overwrite?", "This file already exists. Overwrite?"):
-                return
         try:
             with open(save_path, "w", encoding="utf-8") as f:
                 f.write(self.readme_text())

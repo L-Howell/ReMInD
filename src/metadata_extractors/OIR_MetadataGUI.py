@@ -67,7 +67,7 @@ def extract_oir_metadata(file_path):
     Extract metadata from an Olympus/Evident .oir file.
 
     Returns:
-        tuple: (metadata_output_dict, raw_attrs_dict)
+        dict: the metadata
     """
     with OirFile(file_path) as oir:
 
@@ -222,4 +222,4 @@ def extract_oir_metadata(file_path):
             "File Name":                os.path.basename(file_path),
         }
 
-        return metadata_output, attrs
+        return metadata_output

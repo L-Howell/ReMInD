@@ -90,7 +90,7 @@ function that turns that dict into form field values.
 
 ```python
 IMAGE_READERS = {
-    ".czi": ("CZI", lambda path: extract_metadata(path)[0], metadata_to_form_fields),
+    ".czi": ("CZI", extract_metadata, metadata_to_form_fields),
     ".lif": ("LIF", _read_lif, metadata_to_form_fields),
     ".nd2": ("ND2", extract_nd2_metadata, map_nd2_to_remind_fields),
     ...
@@ -316,7 +316,7 @@ When reporting bugs, include:
 #### extract_metadata(file_path)
 Extract metadata from CZI files.
 - **Parameters**: `file_path` (str) - Path to CZI file
-- **Returns**: `(metadata_dict, raw_metadata)` tuple
+- **Returns**: Metadata dictionary
 - **Raises**: Exception if extraction fails
 
 #### extract_lif_metadata(file_path)
@@ -334,13 +334,13 @@ Extract metadata from ND2 files.
 #### extract_oir_metadata(file_path)
 Extract metadata from Olympus/Evident OIR files.
 - **Parameters**: `file_path` (str) - Path to OIR file
-- **Returns**: `(metadata_dict, raw_attrs)` tuple
+- **Returns**: Metadata dictionary
 - **Raises**: Exception if extraction fails
 
 #### extract_ometiff_metadata(file_path)
 Extract metadata from OME-TIFF files (reads embedded OME-XML via `ome-types`).
 - **Parameters**: `file_path` (str) - Path to .tif/.tiff file
-- **Returns**: `(metadata_dict, ome_object)` tuple; for multi-image files the dict is the per-field most common value across images
+- **Returns**: Metadata dictionary; for multi-image files it holds the per-field most common value across images
 - **Raises**: Exception if the file contains no parseable OME-XML
 
 ### Utility Functions

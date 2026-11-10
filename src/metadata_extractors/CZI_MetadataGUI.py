@@ -39,7 +39,7 @@ def to_int(val):
         return val
 
 def extract_metadata(demo_czi_read):
-    """Extract and return filtered and full metadata from a CZI file."""
+    """Extract metadata from a CZI file and return it as a dict."""
     with pyczi.open_czi(demo_czi_read) as czi_doc:
         root = ET.fromstring(czi_doc.raw_metadata)
         metadata_dict = czi_doc.metadata
@@ -329,4 +329,4 @@ def extract_metadata(demo_czi_read):
                 if filterset_value:
                     metadata_output["Emission Wavelength Range (nm)"][i] = filterset_value
 
-        return metadata_output, metadata_dict
+        return metadata_output

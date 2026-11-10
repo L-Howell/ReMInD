@@ -177,7 +177,7 @@ def extract_ometiff_metadata(file_path):
     Extract metadata from an OME-TIFF file.
 
     Returns:
-        tuple: (metadata_output_dict, ome_object)
+        dict: the metadata
 
     Raises:
         Exception: if the file contains no parseable OME-XML metadata.
@@ -198,7 +198,7 @@ def extract_ometiff_metadata(file_path):
     metadata_output["Image Count"] = len(ome.images)
     metadata_output["File Name"] = os.path.basename(file_path)
 
-    return metadata_output, ome
+    return metadata_output
 
 
 # CLI usage for testing
@@ -209,5 +209,5 @@ if __name__ == "__main__":
     if len(sys.argv) < 2:
         print("Usage: python OMETiff_MetadataGUI.py <file.ome.tif>")
     else:
-        meta, _ = extract_ometiff_metadata(sys.argv[1])
+        meta = extract_ometiff_metadata(sys.argv[1])
         print(json.dumps(meta, indent=2, default=str))

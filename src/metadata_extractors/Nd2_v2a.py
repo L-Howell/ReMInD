@@ -1,6 +1,5 @@
 import os
 from nd2 import ND2File
-from datetime import datetime
 
 try:
     from .field_mapping import metadata_to_form_fields
