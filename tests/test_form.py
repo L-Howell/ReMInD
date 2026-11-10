@@ -61,6 +61,16 @@ class FormTest(unittest.TestCase):
     def field(self, label):
         return dict(self.app.field_values())[label]
 
+    def test_examples_in_empty_fields_are_not_saved(self):
+        # An empty field displays an example such as "e.g. Confocal 5". It
+        # is put there as text, so it must be kept out of what is saved.
+        self.assertEqual({value for _, value in self.app.field_values()}, {""})
+        self.assertEqual(self.app.get_condition_rows(), [])
+
+        self.app.set_field("Sample Carrier", "8-well ibidi")
+        self.app.set_field("Sample Carrier", "")
+        self.assertEqual(self.field("Sample Carrier"), "")
+
     def test_clear_form_removes_image_metadata_from_the_next_readme(self):
         self.app.load_image_file("first_experiment.czi")
         self.assertIn("LSM 980", self.app.readme_text())

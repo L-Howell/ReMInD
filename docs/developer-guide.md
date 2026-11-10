@@ -6,6 +6,7 @@ remind/
 ├── src/
 │   ├── remind.py                  # Main application
 │   ├── readme_io.py               # Reads and writes the ReadMe.txt format
+│   ├── theme.py                   # Colours and fonts of the window
 │   ├── metadata_extractors/
 │   │   ├── CZI_MetadataGUI.py      # Zeiss CZI metadata extraction
 │   │   ├── LIF_MetadataGUI.py      # Leica LIF metadata extraction
@@ -72,14 +73,25 @@ python src/remind.py
 ### Key Features Implementation
 
 #### Window Layout
-- `build_toolbar()` - the action buttons, fixed at the top of the window
+- `build_toolbar()` - the action buttons and status line, fixed at the top
 - `setup_scrollable_window()` - a canvas holding the form, which scrolls
-  vertically and is kept at the width of the window
-- `build_form()` - one `ttk.LabelFrame` per section. `SECTION_HEADINGS` maps
-  the first field of each section to its heading
+  vertically
+- `build_form()` - one card (bordered panel) per section. `SECTION_HEADINGS`
+  maps the first field of each section to its heading
+- `arrange_cards()` - places the cards in two columns as listed in
+  `CARD_PLACES`, or in one column when the form area is narrower than
+  `TWO_COLUMN_WIDTH`
 
-All widgets are ttk widgets styled by `sv-ttk`, except the text boxes and the
-canvas, which `toggle_dark_mode()` colours to match.
+`HintEntry` is a text field that shows a grey example while empty; its
+`get()` returns `""` while the example is shown, so examples are never saved.
+
+#### Theme
+`src/theme.py` holds the colours in one dictionary, `COLOURS`, with a `"dark"`
+and a `"light"` set. To change how the program looks, edit the hex values
+there. `apply_theme()` styles every ttk widget from them on top of Tk's
+built-in "clam" theme, so there is no theme package and no image files.
+The text boxes and the canvas are not ttk widgets; `toggle_dark_mode()`
+colours them from the same dictionary.
 
 #### Metadata Extraction Pipeline
 Each supported file extension has one entry in `IMAGE_READERS` in `remind.py`:
@@ -254,7 +266,8 @@ The single executable is written to the `dist/` directory.
 - [ ] File loading and form population
 - [ ] Help dialog displays
 - [ ] Resizing: form follows the window width, mouse wheel scrolls over any field
-- [ ] Dark and light mode, including the title bar
+- [ ] Dark and light mode, including the title bar and an opened dropdown list
+- [ ] Narrow window: cards stack in one column
 
 ### Automated Tests
 ```bash
@@ -265,7 +278,7 @@ python -m unittest discover -s tests
 - `tests/test_field_mapping.py` - which form fields are filled from image metadata, and how several images are combined
 - `tests/test_lif.py` - each image in a LIF file reports its own settings
 - `tests/test_nd2.py` - laser lines are read from the ND2 acquisition settings text
-- `tests/test_form.py` - form behaviour (Clear Form, templates, loading files).
+- `tests/test_form.py` - form behaviour (Clear Form, templates, loading files, examples in empty fields).
   These open the real window and are skipped where no display is available
 
 The tests do not need image files: the extractor libraries are not exercised,

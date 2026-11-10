@@ -3,4 +3,3 @@ readlif>=0.6.4
 nd2>=0.5.0
 oirfile>=2024.1.1
 ome-types>=0.5.0    # OME-TIFF files (reads embedded OME-XML)
-sv-ttk>=2.6.0      # dark/light theme for the dropdowns

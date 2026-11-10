@@ -45,7 +45,7 @@ except ImportError as e:
     print("Make sure the metadata_extractors folder contains the required files")
     sys.exit(1)
 
-import sv_ttk
+from theme import HINT_COLOUR, apply_theme
 
 APP_NAME = "ReMInD"
 APP_VERSION = "3.0.0"
@@ -55,14 +55,14 @@ APP_DATE = "June 2026"
 # (label, dropdown options or "" for a text box, tooltip). The dropdowns also
 # accept typed text, so the options are suggestions rather than limits.
 FORM_FIELDS = [
-    ("Experiment name", "", "Title of the experiment."),
+    ("Experiment name", "", "Title of the experiment, e.g. Drug screen, plate 2"),
     ("Storage Location", "", "Where the raw data is stored, e.g. a data repository / shared drive or project name"),
     ("Date and time", "", "Date and time of acquisition. The Now button will autopopulate the fields"),
-    ("Experimentor Name(s)", "", "Enter your full name."),
+    ("Experimentor Name(s)", "", "Full name of everyone who acquired the data, e.g. Alex Researcher"),
     ("Sample Information", "", "e.g. Sample ID, or cell line, animal strain"),
     ("Genetic Modifications", "", "e.g. eGFP- mCherry-y"),
     ("Antibody or probes", "", "e.g. Alexa488-Phalloidin, DAPI, Alexa647-GaM"),
-    ("Fixation / Live Media", "", "Fixation method used, or details of live imaging reagents"),
+    ("Fixation / Live Media", "", "Fixation method used, or details of live imaging reagents,\ne.g. 4% PFA 15 min, or live in FluoroBrite + 10% FBS"),
     ("Sample Carrier", "", "e.g. 35mm Dish, #1.5 coverslip, chamber slide"),
     ("Mounting medium", "", "e.g. Prolong Gold, Mowiol, PBS, glycerol"),
     ("Microscope name", "", "e.g. Confocal 5"),
@@ -77,6 +77,20 @@ FORM_FIELDS = [
     ("Image format", "", "Image file format (e.g., .czi, .tif, .lif, .oir)."),
     ("Notes", "", "Analysis intent or relevant notes."),
 ]
+
+# Below this width of the form area the cards are stacked in one column.
+TWO_COLUMN_WIDTH = 1050
+
+# Card title -> (row, column, rows spanned, columns spanned) in the two-column
+# layout. In one column the cards are stacked in the order listed here.
+CARD_PLACES = {
+    "Experiment": (0, 0, 1, 1),
+    "Sample": (1, 0, 1, 1),
+    "Microscope and acquisition": (0, 1, 2, 1),
+    "Notes": (2, 0, 1, 1),
+    "Filename Key": (2, 1, 1, 1),
+    "Extracted Image Metadata": (3, 0, 1, 2),
+}
 
 # First field of each section of the form -> section heading.
 SECTION_HEADINGS = {
@@ -116,6 +130,54 @@ def find_templates(folder):
     return sorted(glob.glob(os.path.join(glob.escape(folder), "*_ReadME_template.txt")))
 
 
+class HintEntry(ttk.Entry):
+    """
+    A text field that shows a grey example while it is empty and does not
+    have the keyboard focus. The example is display only: get() returns ""
+    while it is shown.
+    """
+
+    def __init__(self, parent, hint, **options):
+        super().__init__(parent, **options)
+        self.hint = hint
+        self.showing_hint = False
+        self.bind("<FocusIn>", lambda event: self._hide_hint())
+        self.bind("<FocusOut>", lambda event: self._show_hint())
+        self._show_hint()
+
+    def _show_hint(self):
+        if not self.showing_hint and not super().get():
+            self.showing_hint = True
+            super().insert(0, self.hint)
+            self.configure(foreground=HINT_COLOUR)
+
+    def _hide_hint(self):
+        if self.showing_hint:
+            self.showing_hint = False
+            super().delete(0, tk.END)
+            self.configure(foreground="")
+
+    def get(self):
+        return "" if self.showing_hint else super().get()
+
+    def delete(self, first, last=None):
+        self._hide_hint()
+        super().delete(first, last)
+
+    def insert(self, index, text):
+        self._hide_hint()
+        super().insert(index, text)
+        if self.focus_get() is not self:
+            self._show_hint()
+
+
+def field_hint(tooltip_text):
+    """Return the example to show inside an empty field: the "e.g." part of
+    its tooltip, or "" if the tooltip gives no example."""
+    position = tooltip_text.find("e.g.")
+    return tooltip_text[position:].replace("\n", " ") if position >= 0 else ""
+
+
 class ToolTip:
     def __init__(self, widget, text):
         self.widget = widget
@@ -150,11 +212,11 @@ class REMBIGUI:
         self.root = root
         self.root.title(f"Recommended Metadata Interface for Documentation - {APP_NAME} v{APP_VERSION}")
 
-        # Capped at 80% of the screen so the window fits on small displays.
+        # Capped at 85% of the screen so the window fits on small displays.
         screen_width = self.root.winfo_screenwidth()
         screen_height = self.root.winfo_screenheight()
-        window_width = min(900, int(screen_width * 0.8))
-        window_height = min(800, int(screen_height * 0.8))
+        window_width = min(1360, int(screen_width * 0.85))
+        window_height = min(900, int(screen_height * 0.85))
         x = (screen_width - window_width) // 2
         y = (screen_height - window_height) // 2
         self.root.geometry(f"{window_width}x{window_height}+{x}+{y}")
@@ -162,6 +224,9 @@ class REMBIGUI:
         self.fields = FORM_FIELDS
         self.entries = {}
         self.text_fields = {}
+        self.field_labels = {}
+        self.dropdowns = []
+        self.filled_from_image = set()
         self.last_metadata_output = {}
         # Content of the template loaded at startup, if any. Clear Form
         # returns to these values.
@@ -185,35 +250,43 @@ class REMBIGUI:
     def build_toolbar(self):
         """Create the row of action buttons, which stays visible while the
         form below it scrolls."""
-        self.toolbar = ttk.Frame(self.root, padding=(8, 6))
+        self.toolbar = ttk.Frame(self.root, padding=(12, 10, 12, 6), style="Band.TFrame")
         self.toolbar.pack(side="top", fill="x")
 
-        buttons = [
-            ("Load Fields from Image File", self.load_fields_from_image,
-             "Fill in fields from the metadata stored in a CZI, LIF, ND2, OIR or OME-TIFF file"),
-            ("Load ReadMe.txt", self.load_existing,
-             "Open a ReadMe.txt saved earlier to edit or reuse it"),
-            ("Generate ReadMe.txt", self.generate_readme,
-             "Save this form as a ReadMe.txt, ideally next to the data it describes"),
-            ("Export as JSON", self.export_as_json,
-             "Save this form and the image metadata as a JSON file for other software"),
-            ("Clear Form", self.clear_form,
-             "Empty the form. Values from this computer's template are put back"),
-            ("Help", self.show_help, ""),
-        ]
-        for text, command, tooltip_text in buttons:
-            button = ttk.Button(self.toolbar, text=text, command=command)
-            button.pack(side="left", padx=(0, 4))
-            ToolTip(button, tooltip_text)
+        def button(text, command, tooltip_text, side="left", accent=False):
+            widget = ttk.Button(self.toolbar, text=text, command=command,
+                                style="Accent.TButton" if accent else "TButton")
+            widget.pack(side=side, padx=(0, 6) if side == "left" else (6, 0))
+            ToolTip(widget, tooltip_text)
+            return widget
 
-        self.dark_mode_btn = ttk.Button(self.toolbar, text="Dark", command=self.toggle_dark_mode)
-        self.dark_mode_btn.pack(side="right", padx=(12, 0))
+        def gap():
+            ttk.Frame(self.toolbar, width=14, style="Band.TFrame").pack(side="left")
+
+        # Left to right in the order they are used: bring information in,
+        # then save it.
+        button("Load Fields from Image File", self.load_fields_from_image,
+               "Fill in fields from the metadata stored in a CZI, LIF, ND2, OIR or OME-TIFF file")
+        button("Load ReadMe.txt", self.load_existing,
+               "Open a ReadMe.txt saved earlier to edit or reuse it")
+        gap()
+        button("Generate ReadMe.txt", self.generate_readme,
+               "Save this form as a ReadMe.txt, ideally next to the data it describes", accent=True)
+        button("Export as JSON", self.export_as_json,
+               "Save this form and the image metadata as a JSON file for other software")
+        gap()
+        button("Clear Form", self.clear_form,
+               "Empty the form. Values from this computer's template are put back")
+
+        self.dark_mode_btn = button("Dark", self.toggle_dark_mode, "Switch between dark and light", side="right")
+        button("Help", self.show_help, "", side="right")
 
         # Says what the last action did, since success is not shown in a popup.
         self.status_label = ttk.Label(
-            self.root, padding=(10, 0, 10, 6),
+            self.root, padding=(14, 0, 14, 10), style="Band.TLabel",
             text="Start by loading an image file, or fill in the form by hand.")
         self.status_label.pack(side="top", fill="x")
+        ttk.Separator(self.root, orient="horizontal").pack(side="top", fill="x")
 
     def setup_scrollable_window(self):
         """Create the scrolling area that holds the form."""
@@ -223,38 +296,76 @@ class REMBIGUI:
         scrollbar.pack(side="right", fill="y")
         self.main_canvas.pack(side="left", fill="both", expand=True)
 
-        self.scrollable_frame = ttk.Frame(self.main_canvas, padding=8)
+        self.scrollable_frame = ttk.Frame(self.main_canvas, padding=12, style="Page.TFrame")
         frame_id = self.main_canvas.create_window((0, 0), window=self.scrollable_frame, anchor="nw")
         self.scrollable_frame.bind(
             "<Configure>",
             lambda e: self.main_canvas.configure(scrollregion=self.main_canvas.bbox("all"))
         )
-        # A frame inside a canvas keeps its own width unless told otherwise.
-        self.main_canvas.bind(
-            "<Configure>",
-            lambda e: self.main_canvas.itemconfigure(frame_id, width=e.width)
-        )
+
+        def fit_form(event):
+            two_columns = event.width >= TWO_COLUMN_WIDTH
+            self.arrange_cards(two_columns)
+            # Very long fields are hard to read, so the form stops growing at
+            # a maximum width and is then centred.
+            width = min(event.width, 1500 if two_columns else 920)
+            self.main_canvas.itemconfigure(frame_id, width=width)
+            self.main_canvas.coords(frame_id, (event.width - width) // 2, 0)
+
+        self.main_canvas.bind("<Configure>", fit_form)
 
         # Bound for every widget so the form scrolls wherever the pointer is.
         self.root.bind_all("<MouseWheel>", self.scroll_form)  # Windows
         self.root.bind_all("<Button-4>", self.scroll_form)    # Linux
         self.root.bind_all("<Button-5>", self.scroll_form)    # Linux
 
-    def build_form(self):
+    def card(self, title, subtitle=""):
+        """Create a bordered panel with a heading for one section of the
+        form, and return it. arrange_cards puts it in place."""
+        frame = ttk.Frame(self.scrollable_frame, style="Card.TFrame", padding=(16, 12, 16, 16))
+        heading = ttk.Frame(frame)
+        heading.pack(fill="x", pady=(0, 10))
+        ttk.Label(heading, text=title, style="Heading.TLabel").pack(side="left")
+        if subtitle:
+            ttk.Label(heading, text=subtitle, style="Muted.TLabel").pack(side="left", padx=(10, 0))
+        self.cards[title] = frame
+        return frame
+
+    def arrange_cards(self, two_columns):
+        """Lay the cards out in two columns, or in one for a narrow window."""
+        if two_columns == self.two_columns:
+            return
+        self.two_columns = two_columns
         parent = self.scrollable_frame
+        parent.grid_columnconfigure(0, weight=1, uniform="column")
+        parent.grid_columnconfigure(1, weight=1 if two_columns else 0, uniform="column" if two_columns else "")
+        for title, (row, column, rowspan, columnspan) in CARD_PLACES.items():
+            if two_columns:
+                self.cards[title].grid(row=row, column=column, rowspan=rowspan, columnspan=columnspan,
+                                       sticky="nsew", pady=(0, 12),
+                                       padx=(0, 12) if column == 0 and columnspan == 1 else 0)
+            else:
+                self.cards[title].grid(row=list(CARD_PLACES).index(title), column=0, rowspan=1, columnspan=1,
+                                       sticky="nsew", pady=(0, 12), padx=0)
+        self.version_label.grid(row=len(CARD_PLACES), column=0, columnspan=2 if two_columns else 1)
+
+    def build_form(self):
+        self.cards = {}
+        self.two_columns = None
         # The same label width in every section keeps the fields lined up.
         label_width = max(len(label) for label, _, _ in self.fields)
 
         for label, options, tooltip_text in self.fields:
             if label in SECTION_HEADINGS:
-                section = ttk.LabelFrame(parent, text=SECTION_HEADINGS[label], padding=8)
-                section.pack(fill="x", pady=(0, 8))
+                section = ttk.Frame(self.card(SECTION_HEADINGS[label]))
+                section.pack(fill="both", expand=True)
                 section.grid_columnconfigure(1, weight=1)
             row = section.grid_size()[1]
 
             if label in MULTILINE_FIELDS:
-                text_box = tk.Text(section, height=8, wrap="word", font="TkTextFont")
-                text_box.grid(row=row, column=0, columnspan=2, sticky="ew")
+                text_box = tk.Text(section, height=7, wrap="word", font="TkTextFont", padx=8, pady=6)
+                text_box.grid(row=row, column=0, columnspan=2, sticky="nsew")
+                section.grid_rowconfigure(row, weight=1)
                 self.entries[label] = text_box
                 self.text_fields[label] = text_box
                 ToolTip(text_box, tooltip_text)
@@ -263,81 +374,86 @@ class REMBIGUI:
                     now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     text_box.insert(tk.END, f"\n[{now}] ")
 
-                timestamp_btn = ttk.Button(section, text="Timestamp", command=insert_timestamp)
-                timestamp_btn.grid(row=row + 1, column=0, columnspan=2, sticky="w", pady=(6, 0))
-                ToolTip(timestamp_btn, "Insert timestamp into notes")
+                timestamp_btn = ttk.Button(section, text="Insert timestamp", command=insert_timestamp)
+                timestamp_btn.grid(row=row + 1, column=0, columnspan=2, sticky="w", pady=(8, 0))
+                ToolTip(timestamp_btn, "Add the current date and time to the notes")
                 continue
 
-            ttk.Label(section, text=label, width=label_width, anchor="e").grid(
-                row=row, column=0, sticky="e", padx=(0, 8), pady=2)
+            self.field_labels[label] = ttk.Label(section, text=label, width=label_width, anchor="e")
+            self.field_labels[label].grid(row=row, column=0, sticky="e", padx=(0, 10), pady=3)
 
             if isinstance(options, list):
                 var = tk.StringVar()
-                combo = ttk.Combobox(section, textvariable=var, values=options)
-                combo.grid(row=row, column=1, pady=2, sticky="ew")
+                widget = ttk.Combobox(section, textvariable=var, values=options)
+                widget.grid(row=row, column=1, pady=3, sticky="ew")
                 self.entries[label] = var
-                ToolTip(combo, tooltip_text)
+                self.dropdowns.append(widget)
                 # Without this the wheel changes the selected value of a
                 # dropdown the pointer happens to be over.
                 for wheel_event in ("<MouseWheel>", "<Button-4>", "<Button-5>"):
-                    combo.bind(wheel_event, self.scroll_form)
+                    widget.bind(wheel_event, self.scroll_form)
+                widget.bind("<<ComboboxSelected>>", lambda event, label=label: self.unmark_field(label))
 
             elif label == "Date and time":
                 frame = ttk.Frame(section)
-                frame.grid(row=row, column=1, pady=2, sticky="ew")
+                frame.grid(row=row, column=1, pady=3, sticky="ew")
 
-                date_entry = ttk.Entry(frame)
-                date_entry.pack(side="left", fill="x", expand=True)
-                self.entries[label] = date_entry
-                ToolTip(date_entry, tooltip_text)
+                widget = HintEntry(frame, "YYYY-MM-DD HH:MM:SS")
+                widget.pack(side="left", fill="x", expand=True)
+                self.entries[label] = widget
 
-                def insert_datetime(entry_widget=date_entry):
+                def insert_datetime(entry_widget=widget, label=label):
                     now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     entry_widget.delete(0, tk.END)
                     entry_widget.insert(0, now)
+                    self.unmark_field(label)
 
                 timestamp_btn = ttk.Button(frame, text="Now", command=insert_datetime)
-                timestamp_btn.pack(side="right", padx=(4, 0))
+                timestamp_btn.pack(side="right", padx=(6, 0))
                 ToolTip(timestamp_btn, "Insert current date and time")
 
             else:
-                entry = ttk.Entry(section)
-                entry.grid(row=row, column=1, pady=2, sticky="ew")
-                self.entries[label] = entry
-                ToolTip(entry, tooltip_text)
+                widget = HintEntry(section, field_hint(tooltip_text))
+                widget.grid(row=row, column=1, pady=3, sticky="ew")
+                self.entries[label] = widget
+
+            ToolTip(widget, tooltip_text)
+            # Once the user types in a field its value is no longer the one
+            # read from the image.
+            widget.bind("<Key>", lambda event, label=label: self.unmark_field(label), add="+")
 
         # --- Filename Key: map a filename keyword to a biological group/treatment ---
-        key_frame = ttk.LabelFrame(parent, text="Filename Key", padding=8)
-        key_frame.pack(fill="x", pady=(0, 8))
-        ttk.Label(key_frame, text="Link a keyword in your file names to the group it identifies."
-                  ).pack(anchor="w", pady=(0, 4))
-
-        self.condition_rows_frame = ttk.Frame(key_frame)
+        key_card = self.card("Filename Key", "Link a keyword in your file names to the group it identifies")
+        self.condition_rows_frame = ttk.Frame(key_card)
         self.condition_rows_frame.pack(fill="x")
         for column, heading in enumerate(("Filename keyword", "Group / treatment")):
             self.condition_rows_frame.grid_columnconfigure(column, weight=1, uniform="key")
-            ttk.Label(self.condition_rows_frame, text=heading
-                      ).grid(row=0, column=column, sticky="w", padx=2)
+            ttk.Label(self.condition_rows_frame, text=heading, style="Muted.TLabel"
+                      ).grid(row=0, column=column, sticky="w", padx=2, pady=(0, 2))
 
         # Two empty rows by default; users add more with the + button.
         self.condition_rows = []
         self.add_condition_row()
         self.add_condition_row()
 
-        ttk.Button(key_frame, text="+ Add row", command=self.add_condition_row
-                   ).pack(anchor="w", pady=(6, 0))
+        ttk.Button(key_card, text="+ Add row", command=self.add_condition_row
+                   ).pack(anchor="w", pady=(8, 0))
 
         # --- Read-only display of the metadata extracted from an image file ---
-        metadata_frame = ttk.LabelFrame(parent, text="Extracted Image Metadata", padding=8)
-        metadata_frame.pack(fill="x", pady=(0, 8))
-        self.metadata_text = tk.Text(metadata_frame, height=8, wrap="none", state="disabled")
-        self.metadata_text.tag_configure("hint", foreground="gray", font="TkTextFont")
-        scrollbar = ttk.Scrollbar(metadata_frame, command=self.metadata_text.yview)
+        metadata_card = self.card("Extracted Image Metadata", "Read from the image file and saved with the ReadMe")
+        self.metadata_text = tk.Text(metadata_card, height=12, wrap="word", state="disabled",
+                                     font="TkTextFont", padx=8, pady=6, spacing1=2,
+                                     # Names in one column, values in the next;
+                                     # a long value wraps under its own start.
+                                     tabs=("230",))
+        self.metadata_text.tag_configure("value", lmargin2=230)
+        scrollbar = ttk.Scrollbar(metadata_card, command=self.metadata_text.yview)
         self.metadata_text.config(yscrollcommand=scrollbar.set)
         scrollbar.pack(side="right", fill="y")
         self.metadata_text.pack(side="left", fill="both", expand=True)
 
-        ttk.Label(parent, text=f"{APP_NAME} v{APP_VERSION}  —  {APP_DATE}", foreground="gray").pack()
+        self.version_label = ttk.Label(self.scrollable_frame, style="Page.TLabel",
+                                       text=f"{APP_NAME} v{APP_VERSION}  —  {APP_DATE}")
 
     def scroll_form(self, event):
         """Scroll the form in response to a mouse wheel event."""
@@ -422,6 +538,7 @@ class REMBIGUI:
         was loaded at startup."""
         for label, _, _ in self.fields:
             self.set_field(label, "")
+        self.mark_filled_from_image([])
         self.fill_form(self.template_fields, self.template_filename_key, {})
         self.status_label.configure(
             text="Form cleared and template values put back." if self.template_fields else "Form cleared.")
@@ -429,8 +546,8 @@ class REMBIGUI:
     def add_condition_row(self, keyword="", group=""):
         """Append a (filename keyword -> group/treatment) row to the Filename Key table."""
         r = len(self.condition_rows) + 1  # row 0 holds the column headings
-        left = ttk.Entry(self.condition_rows_frame)
-        right = ttk.Entry(self.condition_rows_frame)
+        left = HintEntry(self.condition_rows_frame, "e.g. ctrl")
+        right = HintEntry(self.condition_rows_frame, "e.g. Vehicle control")
         left.insert(0, keyword)
         right.insert(0, group)
         left.grid(row=r, column=0, sticky="ew", padx=2, pady=1)
@@ -526,7 +643,7 @@ class REMBIGUI:
         help_text.insert("end", "✒️ Entering Information \n", "subtitle")
         help_text.insert("end", "\t• Not every field needs to be filled in.\n")
         help_text.insert("end", "\t• Enter where your raw data is stored (e.g. a data repository or project name) in the 'Storage Location' field.\n")
-        help_text.insert("end", "\t• Hover your cursor over the text box for more description for the field.\n")
+        help_text.insert("end", "\t• Empty fields show an example in grey. Hover your cursor over a field for more description.\n")
         help_text.insert("end", "\t• Some fields contain drop down lists you can choose items from. If none of the items fit, type your own value into the box.\n")
         help_text.insert("end", "\t• The notes box can be filled in with as much detail as possible. You can use the 'Timestamp' button to generate a new line with the date and time.\n\n")
 
@@ -548,7 +665,7 @@ class REMBIGUI:
         help_text.insert("end", "\t\t- Imaging parameters (Z-stack, time series)\n")
         help_text.insert("end", "\t\t- Software and system information\n")
         help_text.insert("end", "\t• Extracted metadata will be displayed in the 'Extracted Image Metadata' section.\n")
-        help_text.insert("end", "\t• You can review and edit the imported information before generating your ReadMe file.\n")
+        help_text.insert("end", "\t• The fields that were filled from the file are highlighted until you edit them. Review them before generating your ReadMe file.\n")
         help_text.insert("end", "\t• The raw metadata is also included when exporting as JSON or generating ReadMe files.\n\n")
         
         help_text.insert("end", "💾 Generate ReadMe.txt\n", "subtitle")
@@ -650,10 +767,11 @@ class REMBIGUI:
             self.set_field(label, value)
         self.set_field("Image format", ext)
         self.show_metadata_in_window(metadata)
+        self.mark_filled_from_image([*form_values, "Image format"])
         self.status_label.configure(
             text=f"Filled {len(form_values) + 1} fields from {os.path.basename(path)}"
                  f"{f' ({len(per_image)} images)' if len(per_image) > 1 else ''}. "
-                 "Its metadata is listed at the bottom of the form.")
+                 "Check the highlighted fields.")
 
     def show_metadata_in_window(self, metadata_dict):
         """Make metadata_dict the extracted image metadata: it is shown in
@@ -665,40 +783,58 @@ class REMBIGUI:
         for k, v in metadata_dict.items():
             if isinstance(v, list):
                 v = ", ".join(str(i) for i in v)
-            self.metadata_text.insert(tk.END, f"{k}: {v}\n")
+            self.metadata_text.insert(tk.END, f"{k}\t", "key")
+            self.metadata_text.insert(tk.END, f"{v}\n", "value")
         if not metadata_dict:
             self.metadata_text.insert(
                 tk.END,
-                "No image file loaded.\n"
-                "Use 'Load Fields from Image File' to fill in fields from a CZI, LIF, ND2, OIR\n"
-                "or OME-TIFF file. The metadata read from the file is listed here and saved\n"
+                "No image file loaded.\n\n"
+                "Use 'Load Fields from Image File' to fill in fields from a CZI, LIF, ND2, OIR "
+                "or OME-TIFF file. The metadata read from the file is listed here and saved "
                 "with the ReadMe.txt.",
                 "hint")
         self.metadata_text.config(state="disabled")
 
     def toggle_dark_mode(self):
         self.dark_mode = not self.dark_mode
-        sv_ttk.set_theme("dark" if self.dark_mode else "light")
+        self.colours = apply_theme(self.root, "dark" if self.dark_mode else "light")
         self.dark_mode_btn.configure(text="Light" if self.dark_mode else "Dark")
 
-        page_bg = "#1c1c1c" if self.dark_mode else "#fafafa"
-        self.root.configure(bg=page_bg)
-        self.main_canvas.configure(bg=page_bg)
+        # The widgets that are not ttk widgets are coloured here.
+        self.root.configure(bg=self.colours["page"])
+        self.main_canvas.configure(bg=self.colours["page"])
         for text_widget in (*self.text_fields.values(), self.metadata_text):
             text_widget.configure(**self.text_colours())
+        self.metadata_text.tag_configure("key", foreground=self.colours["muted"])
+        self.metadata_text.tag_configure("hint", foreground=self.colours["muted"])
+        for dropdown in self.dropdowns:
+            # A list that has already been opened keeps its old colours
+            # unless it is recoloured directly.
+            self.root.tk.eval(
+                f"[ttk::combobox::PopdownWindow {dropdown}].f.l configure"
+                f" -background {self.colours['field']} -foreground {self.colours['text']}")
+        self.mark_filled_from_image(self.filled_from_image)
         self._apply_theme_to_titlebar()
 
+    def mark_filled_from_image(self, labels):
+        """Show the labels of the fields that were filled from an image file
+        in the accent colour, so the user knows which values to check."""
+        self.filled_from_image = set(labels)
+        for label, widget in self.field_labels.items():
+            widget.configure(foreground=self.colours["accent"] if label in self.filled_from_image else "")
+
+    def unmark_field(self, label):
+        """Stop showing a field as filled from an image file."""
+        if label in self.filled_from_image:
+            self.mark_filled_from_image(self.filled_from_image - {label})
+
     def text_colours(self):
-        """Return the options that make a tk.Text match the current theme.
-        sv-ttk only styles ttk widgets, so text boxes are given the colours
-        of its entry fields here."""
-        if self.dark_mode:
-            colours = {"bg": "#2b2b2b", "fg": "#fafafa", "insertbackground": "#fafafa",
-                       "highlightbackground": "#3a3a3a"}
-        else:
-            colours = {"bg": "#ffffff", "fg": "#1c1c1c", "insertbackground": "#1c1c1c",
-                       "highlightbackground": "#d0d0d0"}
-        return {**colours, "relief": "flat", "highlightthickness": 1}
+        """Return the options that make a tk.Text look like the fields of
+        the current theme."""
+        return {"bg": self.colours["field"], "fg": self.colours["text"],
+                "insertbackground": self.colours["text"], "selectbackground": self.colours["accent"],
+                "selectforeground": self.colours["on accent"], "highlightbackground": self.colours["border"],
+                "highlightcolor": self.colours["accent"], "relief": "flat", "highlightthickness": 1}
 
     def _apply_theme_to_titlebar(self):
         """Give the Windows title bar the dark or light style of the app

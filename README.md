@@ -45,8 +45,9 @@ The tool is especially useful for users of light microscopy and other imaging sy
 - **Round-trip compatibility** - reload metadata when opening saved ReadME files
 
 ### Adaptive Interface
-- **Resizable window** - the form follows the window width and scrolls vertically
+- **Two-column layout** - most of the form fits on one screen; a narrow window stacks it in one column
 - **Fixed toolbar** - the action buttons stay visible while the form scrolls
+- **Examples in empty fields** and highlighting of the fields filled from an image file
 - **Dark/light mode toggle** with Windows title bar theming
 
 ---
@@ -61,7 +62,6 @@ The tool is especially useful for users of light microscopy and other imaging sy
   - `nd2` - for Nikon ND2 files [link](https://github.com/tlambert03/nd2)
   - `oirfile` - for Olympus/Evident OIR files [link](https://github.com/cgohlke/oirfile)
   - `ome-types` - for OME-TIFF files [link](https://github.com/tlambert03/ome-types)
-  - `sv-ttk` - dark/light theme for the dropdowns
 
 *Only needed for editing and testing the Python code
 

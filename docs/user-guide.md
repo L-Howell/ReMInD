@@ -14,7 +14,8 @@ Keep one template per computer. If there are several, the first in alphabetical 
 
 ### Interface Layout
 - **Toolbar** - Load Fields from Image File, Load ReadMe.txt, Generate ReadMe.txt, Export as JSON, Clear Form, Help and the Dark/Light switch. It stays visible while the form scrolls
-- **Form fields** - Grouped under Experiment, Sample, Microscope and acquisition, and Notes
+- **Form fields** - Grouped in panels: Experiment, Sample, Microscope and acquisition, and Notes. The panels sit in two columns, or in one column when the window is narrow
+- **Examples** - An empty field shows an example in grey. It disappears when you click in the field and is never saved
 - **Filename Key** - Table linking file name keywords to groups
 - **Extracted Image Metadata** - Shows the metadata read from an image file
 
@@ -84,6 +85,9 @@ both the `ReadMe.txt` and the JSON export, and is reloaded when you open a saved
 - Immersion and imaging mode
 - Whether a Z-stack and a time series were acquired
 - Software and system information (shown in the metadata panel)
+
+The labels of the fields filled from the file are highlighted so you can check
+them; the highlight on a field goes away when you edit it.
 
 Only fields the file has a value for are changed; anything else you have typed
 is kept. The file records an oil objective simply as "Oil", so pick `Oil-23`
