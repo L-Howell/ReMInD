@@ -23,34 +23,22 @@ import os
 import glob
 import tkinter.ttk as ttk
 import sys
-import json
 
 # Add current directory to path for imports
 current_dir = os.path.dirname(os.path.abspath(__file__))
 if current_dir not in sys.path:
     sys.path.insert(0, current_dir)
 
-# Updated imports to look in metadata_extractors subfolder
-try:
-    from metadata_extractors.CZI_MetadataGUI import extract_metadata
-    from metadata_extractors.LIF_MetadataGUI import extract_lif_metadata
-    from metadata_extractors.Nd2_v2a import extract_nd2_metadata
-    from metadata_extractors.OIR_MetadataGUI import extract_oir_metadata
-    from metadata_extractors.OMETiff_MetadataGUI import extract_ometiff_metadata
-    from metadata_extractors._common import combine_image_metadata
-    from metadata_extractors.field_mapping import metadata_to_form_fields, merge_form_fields
-    from readme_io import MULTILINE_FIELDS, format_readme, parse_readme
-except ImportError as e:
-    print(f"Import error: {e}")
-    print("Make sure the metadata_extractors folder contains the required files")
-    sys.exit(1)
-
+from metadata_extractors._common import combine_image_metadata
+from metadata_extractors.field_mapping import metadata_to_form_fields, merge_form_fields
+from readme_io import MULTILINE_FIELDS, format_json, format_readme, parse_json, parse_readme
 from theme import HINT_COLOUR, apply_theme
+from version import RELEASE_DATE, VERSION
 
 APP_NAME = "ReMInD"
-APP_VERSION = "3.0.0"
+APP_VERSION = VERSION
 APP_AUTHOR = "Nicholas Condon, IMB Microscopy, The University of Queensland, Brisbane Australia; Liam Howell, Sydney Microscopy and Microanalysis, The University of Sydney, Sydney Australia"
-APP_DATE = "June 2026"
+APP_DATE = RELEASE_DATE
 
 # (label, dropdown options or "" for a text box, tooltip). The dropdowns also
 # accept typed text, so the options are suggestions rather than limits.
@@ -58,7 +46,7 @@ FORM_FIELDS = [
     ("Experiment name", "", "Title of the experiment, e.g. Drug screen, plate 2"),
     ("Storage Location", "", "Where the raw data is stored, e.g. a data repository / shared drive or project name"),
     ("Date and time", "", "Date and time of acquisition. The Now button will autopopulate the fields"),
-    ("Experimentor Name(s)", "", "Full name of everyone who acquired the data, e.g. Alex Researcher"),
+    ("Experimenter Name(s)", "", "Full name of everyone who acquired the data, e.g. Alex Researcher"),
     ("Sample Information", "", "e.g. Sample ID, or cell line, animal strain"),
     ("Genetic Modifications", "", "e.g. eGFP- mCherry-y"),
     ("Antibody or probes", "", "e.g. Alexa488-Phalloidin, DAPI, Alexa647-GaM"),
@@ -101,16 +89,50 @@ SECTION_HEADINGS = {
 }
 
 
+# Each reader imports its library when it is first used, not when the program
+# starts. A library that fails to load then only stops its own file format
+# from being read, and the window opens sooner.
+def _read_czi(path):
+    from metadata_extractors.czi_metadata import extract_czi_metadata
+    return [extract_czi_metadata(path)]
+
+
+def _read_lif(path):
+    from metadata_extractors.lif_metadata import extract_lif_metadata
+    return extract_lif_metadata(path)
+
+
+def _read_nd2(path):
+    from metadata_extractors.nd2_metadata import extract_nd2_metadata
+    return [extract_nd2_metadata(path)]
+
+
+def _read_oir(path):
+    from metadata_extractors.oir_metadata import extract_oir_metadata
+    return [extract_oir_metadata(path)]
+
+
+def _read_ome_tiff(path):
+    from metadata_extractors.ome_tiff_metadata import extract_ometiff_metadata
+    return extract_ometiff_metadata(path)
+
+
 # File extension -> (format name, function returning one metadata dict per
 # image in a file).
 IMAGE_READERS = {
-    ".czi":  ("CZI", lambda path: [extract_metadata(path)]),
-    ".lif":  ("LIF", extract_lif_metadata),
-    ".nd2":  ("ND2", lambda path: [extract_nd2_metadata(path)]),
-    ".oir":  ("OIR", lambda path: [extract_oir_metadata(path)]),
-    ".tif":  ("OME-TIFF", extract_ometiff_metadata),
-    ".tiff": ("OME-TIFF", extract_ometiff_metadata),
+    ".czi":  ("CZI", _read_czi),
+    ".lif":  ("LIF", _read_lif),
+    ".nd2":  ("ND2", _read_nd2),
+    ".oir":  ("OIR", _read_oir),
+    ".tif":  ("OME-TIFF", _read_ome_tiff),
+    ".tiff": ("OME-TIFF", _read_ome_tiff),
 }
+
+
+def resource_path(name):
+    """Return the path of a file shipped with the program: inside the
+    unpacked executable when built, at the top of the repository otherwise."""
+    return os.path.join(getattr(sys, "_MEIPASS", os.path.dirname(current_dir)), name)
 
 
 def application_folder():
@@ -207,10 +229,15 @@ class ToolTip:
             self.tooltip = None
 
 
-class REMBIGUI:
+class RemindApp:
     def __init__(self, root):
         self.root = root
         self.root.title(f"Recommended Metadata Interface for Documentation - {APP_NAME} v{APP_VERSION}")
+        try:
+            self.root.iconbitmap(resource_path("ReMInD.ico"))
+        except tk.TclError:
+            pass  # .ico files are only understood on Windows
+        self.root.protocol("WM_DELETE_WINDOW", self.close_window)
 
         # Capped at 85% of the screen so the window fits on small displays.
         screen_width = self.root.winfo_screenwidth()
@@ -245,6 +272,7 @@ class REMBIGUI:
         self.root.update_idletasks()
         self.root.minsize(self.toolbar.winfo_reqwidth(), 400)
 
+        self.mark_saved()
         self.root.after(200, self.load_startup_template)
 
     def build_toolbar(self):
@@ -268,7 +296,7 @@ class REMBIGUI:
         button("Load Fields from Image File", self.load_fields_from_image,
                "Fill in fields from the metadata stored in a CZI, LIF, ND2, OIR or OME-TIFF file")
         button("Load ReadMe.txt", self.load_existing,
-               "Open a ReadMe.txt saved earlier to edit or reuse it")
+               "Open a ReadMe.txt or JSON export saved earlier to edit or reuse it")
         gap()
         button("Generate ReadMe.txt", self.generate_readme,
                "Save this form as a ReadMe.txt, ideally next to the data it describes", accent=True)
@@ -455,6 +483,21 @@ class REMBIGUI:
         self.version_label = ttk.Label(self.scrollable_frame, style="Page.TLabel",
                                        text=f"{APP_NAME} v{APP_VERSION}  —  {APP_DATE}")
 
+    def mark_saved(self):
+        """Record the form as it is now as having nothing to lose."""
+        self.saved_content = self.readme_text()
+
+    def may_discard_changes(self):
+        """Return True if the form may be emptied or closed: either nothing
+        has changed since it was last saved, loaded or cleared, or the user
+        agrees to lose the changes."""
+        return self.readme_text() == self.saved_content or messagebox.askyesno(
+            "Discard changes?", "The form has changes that have not been saved. Discard them?")
+
+    def close_window(self):
+        if self.may_discard_changes():
+            self.root.destroy()
+
     def scroll_form(self, event):
         """Scroll the form in response to a mouse wheel event."""
         widget = event.widget
@@ -523,23 +566,27 @@ class REMBIGUI:
         try:
             with open(save_path, "w", encoding="utf-8") as f:
                 f.write(self.readme_text())
+            self.mark_saved()
             self.status_label.configure(text=f"Saved {os.path.basename(save_path)}.")
         except Exception as e:
             messagebox.showerror("Error", f"Could not write file: {e}")
 
     def load_existing(self):
-        path = filedialog.askopenfilename(title="Select existing ReadMe.txt", filetypes=[("Text files", "*.txt")])
-        if not path:
-            return
-        self.parse_readme_file(path)
+        path = filedialog.askopenfilename(title="Select a ReadMe.txt or a JSON export",
+                                          filetypes=[("ReadMe or JSON export", "*.txt *.json")])
+        if path and self.may_discard_changes():
+            self.parse_readme_file(path)
 
     def clear_form(self):
         """Empty the form, then put back the template's values if a template
-        was loaded at startup."""
+        was loaded at startup. Asks first if there are unsaved changes."""
+        if not self.may_discard_changes():
+            return
         for label, _, _ in self.fields:
             self.set_field(label, "")
         self.mark_filled_from_image([])
         self.fill_form(self.template_fields, self.template_filename_key, {})
+        self.mark_saved()
         self.status_label.configure(
             text="Form cleared and template values put back." if self.template_fields else "Form cleared.")
 
@@ -579,11 +626,11 @@ class REMBIGUI:
             self.add_condition_row()
 
     def read_readme_file(self, path):
-        """Return (fields, filename_key, metadata) from a ReadMe.txt or
-        template file, or None after showing a message if it cannot be read."""
+        """Return (fields, filename_key, metadata) from a ReadMe.txt, template
+        or JSON export, or None after showing a message if it cannot be read."""
         try:
             with open(path, "r", encoding="utf-8") as f:
-                return parse_readme(f.read())
+                return (parse_json if path.lower().endswith(".json") else parse_readme)(f.read())
         except Exception as e:
             messagebox.showerror("Error", f"Could not load file: {e}")
             return None
@@ -605,6 +652,7 @@ class REMBIGUI:
         content = self.read_readme_file(path)
         if content:
             self.fill_form(*content)
+            self.mark_saved()
             self.status_label.configure(text=f"Loaded {os.path.basename(path)}.")
 
     def load_template(self, path):
@@ -617,6 +665,7 @@ class REMBIGUI:
         # written into the ReadMe of every later experiment.
         self.template_fields, self.template_filename_key, _ = content
         self.fill_form(self.template_fields, self.template_filename_key, {})
+        self.mark_saved()
         self.status_label.configure(
             text=f"Fields pre-filled from this computer's template, {os.path.basename(path)}.")
 
@@ -758,7 +807,7 @@ class REMBIGUI:
             form_values = merge_form_fields([metadata_to_form_fields(image) for image in per_image])
             metadata = combine_image_metadata(per_image)
         except Exception as e:
-            messagebox.showerror("Error", f"Failed to extract {format_name} metadata:\n{e}")
+            messagebox.showerror("Error", f"Could not read the {format_name} file:\n{e}")
             return
 
         if self.template_fields.get("Microscope name"):
@@ -856,16 +905,6 @@ class REMBIGUI:
             pass
 
     def export_as_json(self):
-        data = dict(self.field_values())
-
-        # Add the Filename Key (keyword -> group/treatment) if any rows are filled
-        condition_pairs = self.get_condition_rows()
-        if condition_pairs:
-            data["Filename Key"] = [{"keyword": k, "group": g} for k, g in condition_pairs]
-
-        if self.last_metadata_output:
-            data["Extracted Image Metadata"] = self.last_metadata_output
-
         save_path = filedialog.asksaveasfilename(defaultextension=".json",
                                                  initialfile=self.default_filename("metadata.json"),
                                                  filetypes=[("JSON files", "*.json")],
@@ -874,14 +913,44 @@ class REMBIGUI:
             return
         try:
             with open(save_path, "w", encoding="utf-8") as f:
-                json.dump(data, f, indent=2)
+                f.write(format_json(self.field_values(), self.get_condition_rows(), self.last_metadata_output))
+            self.mark_saved()
             self.status_label.configure(text=f"Saved {os.path.basename(save_path)}.")
         except Exception as e:
             messagebox.showerror("Error", f"Could not write JSON file: {e}")
 
 
-if __name__ == "__main__":
-    root = tk.Tk()
-    app = REMBIGUI(root)
-    root.mainloop()
+def check_installation(log_path):
+    """
+    Check that everything the program needs at run time can be loaded, for
+    testing a built executable: import the library of every file format and
+    build the window. Problems are written to log_path.
 
+    Returns the process exit code: 0 if all is well, 1 otherwise.
+    """
+    problems = []
+    for extension, (format_name, read) in IMAGE_READERS.items():
+        try:
+            read(f"missing{extension}")
+        except ImportError as e:
+            problems.append(f"{format_name}: {e}")
+        except Exception:
+            pass  # expected: the file does not exist, but the library loaded
+    try:
+        root = tk.Tk()
+        RemindApp(root)
+        root.update()
+        root.destroy()
+    except Exception as e:
+        problems.append(f"window: {e!r}")
+    with open(log_path, "w", encoding="utf-8") as f:
+        f.write("\n".join(problems) or "OK")
+    return 1 if problems else 0
+
+
+if __name__ == "__main__":
+    if "--check" in sys.argv:
+        sys.exit(check_installation(sys.argv[sys.argv.index("--check") + 1]))
+    root = tk.Tk()
+    app = RemindApp(root)
+    root.mainloop()

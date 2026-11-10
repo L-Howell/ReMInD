@@ -4,7 +4,7 @@ import unittest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from metadata_extractors.Nd2_v2a import _lines_on
+from metadata_extractors.nd2_metadata import _lines_on
 
 # Acquisition settings text as NIS-Elements writes it for two channels.
 DESCRIPTION = """Metadata:

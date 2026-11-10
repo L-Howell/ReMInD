@@ -3,7 +3,7 @@
 Experiment name: EXP5_24hr_LiveImaging_CF4
 Storage Location: ExampleProject-001
 Date and time: 2025-03-18T11:24:16
-Experimentor Name(s): uqncondo
+Experimenter Name(s): uqncondo
 Sample Information: RAW264.7 Macrophage
 Genetic Modifications: N/A
 Antibody or probes: Experimental Compounds

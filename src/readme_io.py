@@ -12,15 +12,21 @@ A ReadMe has up to three parts, in this order:
     ---
 
     # Filename Key
-    keyword: group                one line per row
+    keyword -> group              one line per row
 
     # Extracted Image Metadata
     key: value                    one line per item, to the end of the file
 
 Templates use the same format.
+
+The same content can be saved as JSON; see format_json and parse_json.
 """
 
+import json
+
 MULTILINE_FIELDS = ("Notes",)
+
+_SECTION_HEADINGS = ("# Filename Key", "# Extracted Image Metadata")
 
 # Extracted metadata that is a list in memory and written as "a, b, c".
 _LIST_METADATA = ("Channel Names", "Acquisition Modes")
@@ -45,8 +51,9 @@ def format_readme(header, fields, filename_key=(), metadata=None):
         str: the file content, without a trailing newline.
 
     Values are written as they are. parse_readme cannot recover a single-line
-    value that contains a line break, or multi-line text that contains a line
-    consisting only of "---".
+    value that contains a line break, a keyword that contains " -> ", or
+    multi-line text that contains a line reading exactly "# Filename Key" or
+    "# Extracted Image Metadata".
     """
     lines = [header, ""]
     for label, value in fields:
@@ -58,7 +65,7 @@ def format_readme(header, fields, filename_key=(), metadata=None):
     if filename_key:
         lines.append("\n# Filename Key")
         for keyword, group in filename_key:
-            lines.append(f"{keyword}: {group}")
+            lines.append(f"{keyword} -> {group}")
 
     if metadata:
         lines.append("\n# Extracted Image Metadata")
@@ -105,8 +112,8 @@ def parse_readme(text):
             idx += 1
             while idx < len(lines) and not lines[idx].strip().startswith("#"):
                 row = lines[idx].strip()
-                if ": " in row:
-                    keyword, group = row.split(": ", 1)
+                if " -> " in row:
+                    keyword, group = row.split(" -> ", 1)
                     filename_key.append((keyword.strip(), group.strip()))
                 idx += 1
             continue
@@ -125,15 +132,51 @@ def parse_readme(text):
 
         if line.endswith(":") and idx + 1 < len(lines) and lines[idx + 1].strip() == "---":
             label = line[:-1].strip()
-            idx += 2
-            block = []
-            while idx < len(lines) and lines[idx].strip() != "---":
-                block.append(lines[idx])
-                idx += 1
-            fields[label] = "\n".join(block)
+            # The block runs to the last "---" before the next section, so
+            # that a "---" line typed into the text does not end it early.
+            end = next((i for i in range(idx + 2, len(lines)) if lines[i].strip() in _SECTION_HEADINGS),
+                       len(lines))
+            closing = max((i for i in range(idx + 2, end) if lines[i].strip() == "---"), default=end)
+            fields[label] = "\n".join(lines[idx + 2:closing])
+            idx = closing
         elif ": " in line and not line.startswith("#"):
             label, value = line.split(": ", 1)
             fields[label.strip()] = value.strip()
         idx += 1
 
     return fields, filename_key, metadata
+
+
+def format_json(fields, filename_key=(), metadata=None):
+    """
+    Build the text of a JSON export.
+
+    Takes the same arguments as format_readme, without the header. The result
+    is one JSON object with the form fields as its members, followed by
+    "Filename Key" (a list of {"keyword", "group"} objects) and "Extracted
+    Image Metadata" (an object) when there are any.
+    """
+    data = dict(fields)
+    if filename_key:
+        data["Filename Key"] = [{"keyword": keyword, "group": group} for keyword, group in filename_key]
+    if metadata:
+        data["Extracted Image Metadata"] = metadata
+    return json.dumps(data, indent=2)
+
+
+def parse_json(text):
+    """
+    Read the text of a JSON export.
+
+    Returns the same (fields, filename_key, metadata) as parse_readme. Fields
+    with an empty value are left out, as they are there.
+
+    Raises:
+        ValueError: if the text is not a JSON object.
+    """
+    data = json.loads(text)
+    if not isinstance(data, dict):
+        raise ValueError("The file does not hold a ReMInD JSON export.")
+    filename_key = [(row["keyword"], row["group"]) for row in data.pop("Filename Key", [])]
+    metadata = data.pop("Extracted Image Metadata", {})
+    return {label: value for label, value in data.items() if value}, filename_key, metadata

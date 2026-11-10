@@ -284,6 +284,6 @@ if __name__ == "__main__":
     import sys
 
     if len(sys.argv) < 2:
-        print("Usage: python LIF_MetadataGUI.py <file.lif>")
+        print("Usage: python lif_metadata.py <file.lif>")
     else:
         print(json.dumps(extract_lif_metadata(sys.argv[1]), indent=2))

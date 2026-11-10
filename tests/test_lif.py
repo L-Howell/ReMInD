@@ -5,7 +5,7 @@ import xml.etree.ElementTree as ET
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from metadata_extractors.LIF_MetadataGUI import _image_elements, _image_metadata
+from metadata_extractors.lif_metadata import _image_elements, _image_metadata
 
 # Two images in one project, in the layout LAS X writes, cut down to the
 # parts the extractor reads.

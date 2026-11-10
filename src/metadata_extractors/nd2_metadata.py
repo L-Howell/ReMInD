@@ -164,6 +164,6 @@ if __name__ == "__main__":
     import sys
 
     if len(sys.argv) < 2:
-        print("Usage: python Nd2_v2a.py <file.nd2>")
+        print("Usage: python nd2_metadata.py <file.nd2>")
     else:
         print(json.dumps(extract_nd2_metadata(sys.argv[1]), indent=2))

@@ -180,7 +180,7 @@ if __name__ == "__main__":
     import json
 
     if len(sys.argv) < 2:
-        print("Usage: python OMETiff_MetadataGUI.py <file.ome.tif>")
+        print("Usage: python ome_tiff_metadata.py <file.ome.tif>")
     else:
         meta = extract_ometiff_metadata(sys.argv[1])
         print(json.dumps(meta, indent=2, default=str))

@@ -50,7 +50,7 @@ class FormTest(unittest.TestCase):
             patch.start()
             self.addCleanup(patch.stop)
 
-        self.app = remind.REMBIGUI(self.root)
+        self.app = remind.RemindApp(self.root)
 
     def write_file(self, name, text):
         path = os.path.join(self.folder.name, name)
@@ -70,6 +70,21 @@ class FormTest(unittest.TestCase):
         self.app.set_field("Sample Carrier", "8-well ibidi")
         self.app.set_field("Sample Carrier", "")
         self.assertEqual(self.field("Sample Carrier"), "")
+
+    def test_unsaved_changes_are_kept_unless_the_user_agrees_to_lose_them(self):
+        self.app.set_field("Experiment name", "Not saved yet")
+
+        remind.messagebox.askyesno.return_value = False
+        self.app.clear_form()
+        self.assertEqual(self.field("Experiment name"), "Not saved yet")
+
+        remind.messagebox.askyesno.return_value = True
+        self.app.clear_form()
+        self.assertEqual(self.field("Experiment name"), "")
+        # Nothing is left to lose, so the window may now close without asking.
+        remind.messagebox.askyesno.reset_mock()
+        self.assertTrue(self.app.may_discard_changes())
+        remind.messagebox.askyesno.assert_not_called()
 
     def test_clear_form_removes_image_metadata_from_the_next_readme(self):
         self.app.load_image_file("first_experiment.czi")
