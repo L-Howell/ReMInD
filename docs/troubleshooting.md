@@ -91,10 +91,11 @@
 4. Ensure adequate disk space
 
 #### Template not loading
-**Problem**: Template doesn't appear in startup dialog
+**Problem**: Template isn't loaded at startup
 **Requirements**:
 - Filename must end with `_ReadME_template.txt`
-- File must be in same folder as ReMInD.exe
+- File must be in same folder as ReMInD.exe itself. The folder of a shortcut
+  to it, or the folder ReMInD was started from, is not searched
 - File must be valid ReadMe.txt format
 
 **Solutions**:

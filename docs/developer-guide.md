@@ -5,13 +5,16 @@
 remind/
 ├── src/
 │   ├── remind.py                  # Main application
+│   ├── readme_io.py               # Reads and writes the ReadMe.txt format
 │   ├── metadata_extractors/
 │   │   ├── CZI_MetadataGUI.py      # Zeiss CZI metadata extraction
 │   │   ├── LIF_MetadataGUI.py      # Leica LIF metadata extraction
 │   │   ├── Nd2_v2a.py              # Nikon ND2 metadata extraction
 │   │   ├── OIR_MetadataGUI.py      # Olympus/Evident OIR metadata extraction
 │   │   ├── OMETiff_MetadataGUI.py  # OME-TIFF metadata extraction
-│   │   └── _common.py              # Shared helpers (most_common_metadata)
+│   │   ├── field_mapping.py        # Turns extracted metadata into form field values
+│   │   └── _common.py              # Shared helpers (most_common_metadata, term lookup)
+├── tests/                         # Automated tests
 ├── tools/                         # Developer utilities (e.g. inspect_oir.py)
 ├── docs/                          # Documentation
 └── templates/                     # Example templates
@@ -44,7 +47,8 @@ python src/remind.py
 - **Key Methods**:
   - `__init__()` - Window setup and initialization
   - `build_form()` - Creates the GUI form
-  - `load_fields_from_image()` - Metadata extraction dispatcher
+  - `load_image_file()` - Reads an image file and fills the form from it
+  - `parse_readme_file()` / `load_template()` - Load a ReadMe.txt or template
   - `generate_readme()` - Creates ReadMe.txt files
   - `export_as_json()` - JSON export functionality
 
@@ -54,7 +58,12 @@ python src/remind.py
 - **Nd2_v2a.py** - Handles Nikon ND2 files using `nd2` library
 - **OIR_MetadataGUI.py** - Handles Olympus/Evident OIR files using `oirfile` library
 - **OMETiff_MetadataGUI.py** - Handles OME-TIFF files using `ome-types` library
-- **_common.py** - Shared helpers, incl. `most_common_metadata()` for collapsing multi-image container formats
+- **field_mapping.py** - `metadata_to_form_fields()` turns an extractor's output into form field values
+- **_common.py** - Shared helpers: `most_common_metadata()` for collapsing multi-image container formats, and `immersion_term()` / `imaging_mode_term()` for translating file values into the form's terms
+
+#### readme_io.py
+- **Purpose**: The ReadMe.txt file format, with no GUI code
+- `format_readme()` builds the file text; `parse_readme()` reads it back
 
 #### ToolTip Class
 - **Purpose**: Provides hover help text for form fields
@@ -75,75 +84,76 @@ else:
 ```
 
 #### Metadata Extraction Pipeline
+Each supported file extension has one entry in `IMAGE_READERS` in `remind.py`:
+the format name, a function that returns the metadata dict for a file, and a
+function that turns that dict into form field values.
+
 ```python
-def load_fields_from_image(self):
-    # 1. File selection
-    path = filedialog.askopenfilename(...)
-    
-    # 2. Format detection
-    ext = os.path.splitext(path)[1].lower()
-    
-    # 3. Dispatch to appropriate extractor
-    if ext == ".czi":
-        metadata_output, _ = extract_metadata(path)
-    elif ext == ".lif":
-        # Container format: collapse all series to the most common value per field
-        metadata_output = most_common_metadata(extract_lif_metadata(path))
-    elif ext == ".nd2":
-        metadata_output = extract_nd2_metadata(path)
-    elif ext == ".oir":
-        metadata_output, _ = extract_oir_metadata(path)
-    elif ext in (".tif", ".tiff"):
-        metadata_output, _ = extract_ometiff_metadata(path)
-    
-    # 4. Map to form fields
-    # 5. Display in metadata panel
-    # 6. Store for export
+IMAGE_READERS = {
+    ".czi": ("CZI", lambda path: extract_metadata(path)[0], metadata_to_form_fields),
+    ".lif": ("LIF", _read_lif, metadata_to_form_fields),
+    ".nd2": ("ND2", extract_nd2_metadata, map_nd2_to_remind_fields),
+    ...
+}
 ```
+
+`load_image_file()` looks up the extension, calls the two functions, writes
+the returned values into the form, and shows the metadata dict in the
+metadata panel. The same dict is written to the ReadMe.txt and JSON exports.
+
+The extractors share a vocabulary of metadata keys. `metadata_to_form_fields()`
+reads these keys:
+
+| Metadata key | Form field |
+|---|---|
+| `Document Creation Date` | Date and time |
+| `System Name` | Microscope name |
+| `Objective Model` | Objective |
+| `Objective Medium` | Immersion |
+| `Acquisition Modes` | Imaging mode |
+| `Channel Names` | Channel info |
+| `Size Z` | Z-stack (Yes/No) |
+| `Size T` | Time series (Yes/No) |
+
+A field is returned only when the file has a value for it (`"N/A"`, `""` and
+`None` count as no value), so loading an image never overwrites what the user
+typed with a placeholder.
 
 ## Adding New Features
 
 ### Adding a New File Format
 
-1. **Create extractor module**:
+1. **Create extractor module** that returns a dict using the keys above:
 ```python
-# src/NEW_MetadataGUI.py
+# src/metadata_extractors/NEW_MetadataGUI.py
 def extract_new_metadata(file_path):
     """Extract metadata from NEW format files."""
-    try:
-        # Implementation here
-        return metadata_dict
-    except Exception as e:
-        raise Exception(f"Failed to extract NEW metadata: {e}")
+    return {"System Name": ..., "Objective Model": ..., "Size Z": ...}
 ```
 
-2. **Add to main application**:
+2. **Add it to `IMAGE_READERS`** in `remind.py`:
 ```python
-# In remind.py (import from the metadata_extractors package)
 from metadata_extractors.NEW_MetadataGUI import extract_new_metadata
 
-# In load_fields_from_image():
-elif ext == ".new":
-    try:
-        metadata_output = extract_new_metadata(path)
-        # Map fields and display
-    except Exception as e:
-        messagebox.showerror("Error", f"Failed to extract NEW metadata:\n{e}")
+IMAGE_READERS = {
+    # ... existing formats ...
+    ".new": ("NEW", extract_new_metadata, metadata_to_form_fields),
+}
 ```
 
 3. **Update file dialog**:
 ```python
 filetypes = [
-    ("Image files", "*.tif *.tiff *.czi *.lif *.nd2 *.new"),  # Add *.new
+    ("Image files", "*.czi *.lif *.nd2 *.oir *.tif *.tiff *.new"),  # Add *.new
     ("All files", "*.*"),
 ]
 ```
 
 ### Adding New Form Fields
 
-1. **Add to fields list**:
+1. **Add to the `FORM_FIELDS` list** in `remind.py`:
 ```python
-self.fields = [
+FORM_FIELDS = [
     # ... existing fields ...
     ("New Field", "", "Help text for new field"),
 ]
@@ -228,7 +238,7 @@ The single executable is written to the `dist/` directory.
 ### Manual Testing Checklist
 - [ ] Application launches without errors
 - [ ] All form fields accept input
-- [ ] Template loading works
+- [ ] Template loading works: one template loads automatically, several show the dialog, Clear Form returns to the template
 - [ ] Metadata extraction for each format (CZI, LIF, ND2, OIR, OME-TIFF)
 - [ ] Filename Key: add/clear rows, round-trip through ReadMe.txt and JSON
 - [ ] ReadMe.txt generation
@@ -238,22 +248,18 @@ The single executable is written to the `dist/` directory.
 - [ ] Help dialog displays
 - [ ] Responsive design on different screen sizes
 
-### Adding Automated Tests
-```python
-# tests/test_metadata.py
-import unittest
-from src.CZI_MetadataGUI import extract_metadata
-
-class TestMetadataExtraction(unittest.TestCase):
-    def test_czi_extraction(self):
-        # Test with sample CZI file
-        metadata, _ = extract_metadata("sample.czi")
-        self.assertIsInstance(metadata, dict)
-        self.assertIn("System Name", metadata)
-
-if __name__ == "__main__":
-    unittest.main()
+### Automated Tests
+```bash
+python -m unittest discover -s tests
 ```
+
+- `tests/test_readme_io.py` - the ReadMe.txt format, including a file written by v3.0.0
+- `tests/test_field_mapping.py` - which form fields are filled from image metadata
+- `tests/test_form.py` - form behaviour (Clear Form, templates, loading files).
+  These open the real window and are skipped where no display is available
+
+The tests do not need image files: the extractor libraries are not exercised,
+so check each format by hand with a real file when changing an extractor.
 
 ## Code Style and Standards
 

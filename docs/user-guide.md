@@ -6,10 +6,10 @@ ReMInD helps researchers capture essential metadata for imaging experiments, gen
 ## Getting Started
 
 ### First Launch
-When you first open ReMInD, you may see a template selection dialog:
-- **Select a template** to pre-fill common fields
-- **Skip** to start with a blank form
-- This module runs when a file ending with `*ReadMe_template.txt` is present in the same location as the executable
+ReMInD looks for template files (names ending in `_ReadME_template.txt`) in the same folder as the executable:
+- **One template** - it is loaded automatically and its values pre-fill the form
+- **Several templates** - a dialog lets you select one, or skip to start with a blank form
+- **No templates** - the form starts blank
 
 ### Interface Layout
 - **Form fields** - Left column labels, right column inputs
@@ -31,7 +31,7 @@ Fill in relevant fields:
 - Hover over fields for help tooltips
 - Not all fields are required
 - Use dropdown menus where available
-- Choose "Other" and specify in Notes if needed
+- If none of the dropdown items fit, type your own value into the box
 
 ### Filename Key
 
@@ -73,8 +73,13 @@ both the `ReadMe.txt` and the JSON export, and is reloaded when you open a saved
 - Microscope name and model
 - Objective lens specifications
 - Channel information and labels
-- Z-stack and time series settings
-- Software and system information
+- Immersion and imaging mode
+- Whether a Z-stack and a time series were acquired
+- Software and system information (shown in the metadata panel)
+
+Only fields the file has a value for are changed; anything else you have typed
+is kept. The file records an oil objective simply as "Oil", so pick `Oil-23`
+or `Oil-37` yourself if you know which was used.
 
 ### 3. File Operations
 
@@ -88,7 +93,7 @@ both the `ReadMe.txt` and the JSON export, and is reloaded when you open a saved
 1. Click **"Load ReadMe.txt"**
 2. Select a previously generated file
 3. Form repopulates for editing/updating
-4. Extracted metadata should be restored if present
+4. The extracted metadata is replaced by the file's, and cleared if the file has none
 
 #### Export as JSON
 1. Click **"Export as JSON"**
@@ -98,17 +103,39 @@ both the `ReadMe.txt` and the JSON export, and is reloaded when you open a saved
 
 ### 4. Templates
 
-#### Using Templates
-- Templates automatically load at startup
-- Choose from available options or skip
-- Pre-fills common information (name, RDM info, etc.)
+A template pre-fills values that are the same for every experiment. It is a
+ReadMe.txt file with a name ending in `_ReadME_template.txt`, stored in the
+same folder as the ReMInD executable.
 
-#### Creating Templates
+#### Using Templates
+- A single template is loaded automatically at startup
+- With several templates, choose one from the dialog or skip
+- **Clear Form** empties the form and then puts the template's values back,
+  so the next user starts from the template
+- If the template sets **Microscope name**, loading an image file does not
+  change it. The model name stored in the image file still appears in the
+  extracted metadata
+
+#### Templates for a shared instrument
+On an instrument PC used by many people, one template per instrument works
+best: it gives every ReadMe the same instrument name and storage location.
+1. Copy `templates/example_ReadME_template.txt` into the same folder as the
+   ReMInD executable and rename it, e.g. `Confocal5_ReadME_template.txt`
+2. Edit **Storage Location** (e.g. the root folder users save under) and
+   **Microscope name** (the facility's own name for the instrument)
+3. Leave out anything that differs between users
+
+Individual users do not need their own template: **Load ReadMe.txt** on a
+previous ReadMe does the same job.
+
+#### Creating a Template from a ReadMe
 1. Fill out a form with common information
 2. Generate ReadMe.txt
 3. Rename file to `*_ReadME_template.txt`
 4. Place in same folder as ReMInD executable
-5. Will appear in template selection at startup
+
+Extracted image metadata in a template is ignored, because it belongs to the
+experiment the template was made from.
 
 ## Best Practices
 
@@ -156,7 +183,7 @@ both the `ReadMe.txt` and the JSON export, and is reloaded when you open a saved
 
 #### Template not appearing
 - **Cause**: Incorrect filename or location
-- **Solution**: Ensure filename ends with `_ReadME_template.txt` and is in same folder as executable
+- **Solution**: Ensure filename ends with `_ReadME_template.txt` and is in same folder as executable (not the folder of a shortcut to it)
 
 #### Window too large/small
 - **Cause**: Screen resolution issues
