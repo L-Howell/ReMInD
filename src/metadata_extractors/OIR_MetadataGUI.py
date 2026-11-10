@@ -79,7 +79,8 @@ def extract_oir_metadata(file_path):
         size_t = sizes.get('T', 'N/A')
         size_c = sizes.get('C', 'N/A')
 
-        # Channel names from coordinate array — matches image data
+        # Channel names from coordinate array — matches image data. A file
+        # with a single channel has no channel axis; it is named further down.
         ch_coord      = oir.coords.get('C')
         channel_names = [str(c) for c in ch_coord] if ch_coord is not None else ['N/A']
         num_channels  = len(channel_names)
@@ -103,7 +104,8 @@ def extract_oir_metadata(file_path):
                 pz = length_el.findtext('z')
                 if px: pixel_size_x = _safe_round(px)
                 if py: pixel_size_y = _safe_round(py)
-                if pz: pixel_size_z = _safe_round(pz)
+                # The file gives a Z step even when no Z-stack was taken.
+                if pz and 'Z' in sizes: pixel_size_z = _safe_round(pz)
                 break
 
         # --- Image field of view in µm ---
@@ -144,7 +146,7 @@ def extract_oir_metadata(file_path):
                 parts.append(obj_mag)
         if obj_na != 'N/A':
             parts.append(f"NA {obj_na}")
-        objective_str = '  '.join(parts) if parts else 'N/A'
+        objective_str = ' '.join(parts) if parts else 'N/A'
 
         immersion = immersion_term(imm_raw)
 
@@ -156,41 +158,54 @@ def extract_oir_metadata(file_path):
 
         for root in roots:
             ch_data = []
+            seen_ids = set()
             for group_el in root.findall('.//phase/group'):
                 for ch_el in group_el.findall('channel'):
-                    wl_el = ch_el.find('.//wavelengthRange')
-                    if wl_el is None:
+                    # Each channel is described twice, the second time
+                    # without its detection band.
+                    if ch_el.get('id') in seen_ids:
                         continue
-
-                    # Emission: detection band expressed as a range, e.g. "(430, 470)"
-                    start = wl_el.findtext('startWavelength')
-                    end   = wl_el.findtext('endWavelength')
-                    if start and end:
-                        try:
-                            em_str = f"({int(float(start))}, {int(float(end))})"
-                        except (ValueError, TypeError):
-                            em_str = 'N/A'
-                    else:
+                    seen_ids.add(ch_el.get('id'))
+                    # Emission: detection band, e.g. "430-470". A lambda scan
+                    # has no fixed band.
+                    wl_el = ch_el.find('.//wavelengthRange')
+                    try:
+                        em_str = (f"{int(float(wl_el.findtext('startWavelength')))}-"
+                                  f"{int(float(wl_el.findtext('endWavelength')))}")
+                    except (AttributeError, TypeError, ValueError):
                         em_str = 'N/A'
 
-                    # Excitation: laser wavelength from laserDataId
-                    # e.g. "LD405_65792Imaging_main_phase_1" → 405
-                    laser_id = ch_el.findtext('laserDataId') or ''
-                    match = re.search(r'LD(\d+)', laser_id)
-                    ex_wl = int(match.group(1)) if match else 'N/A'
+                    # Excitation: laser wavelengths from the laserDataId values,
+                    # e.g. "LD405_65792Imaging_main_phase_1" → 405. A channel
+                    # can use several lasers.
+                    lasers = [m.group(1) for m in
+                              (re.search(r'LD(\d+)', el.text or '') for el in ch_el.findall('laserDataId')) if m]
+                    ex_wl = int(lasers[0]) if len(lasers) == 1 else ', '.join(lasers) or 'N/A'
 
                     ph = ch_el.findtext('.//pinholeDiameter')
                     ch_data.append({
+                        'name':       ch_el.findtext('name') or 'N/A',
                         'excitation': ex_wl,
                         'emission':   em_str,
                         'pinhole':    _safe_round(ph) if ph else 'N/A',
                     })
 
             if ch_data:
+                if ch_coord is None and len(ch_data) > 1:
+                    # One channel was saved but several are described, and
+                    # the file does not say which one it is.
+                    break
+                if ch_coord is None:
+                    channel_names = [ch_data[0]['name']]
                 excitation_wavelengths = [d['excitation'] for d in ch_data[:num_channels]]
                 emission_wavelengths   = [d['emission']   for d in ch_data[:num_channels]]
                 pinhole_sizes          = [d['pinhole']    for d in ch_data[:num_channels]]
                 break
+
+        # Dye set for each channel, from the <lsmimage:channel> blocks.
+        dye_by_channel = {root.findtext('name'): root.findtext('dyeName')
+                          for root in roots if root.tag == 'lsmChannel'}
+        dye_names = [dye_by_channel.get(name) or 'N/A' for name in channel_names]
 
         attrs = oir.attrs or {}
 
@@ -203,8 +218,9 @@ def extract_oir_metadata(file_path):
             "Objective Medium":         immersion,
             "Acquisition Modes":        acq_mode,
             "Channel Names":            channel_names,
+            "Dye Names":                dye_names,
             "Excitation Wavelengths":   excitation_wavelengths,
-            "Emission Wavelengths":     emission_wavelengths,
+            "Emission Wavelength Range (nm)": emission_wavelengths,
             "Pinhole Diameters (um)":   pinhole_sizes,
             "Size X":                   size_x,
             "Size Y":                   size_y,
