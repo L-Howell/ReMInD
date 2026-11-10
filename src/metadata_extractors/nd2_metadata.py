@@ -4,6 +4,7 @@ Returns key image, instrument, and channel metadata as a dictionary using the
 same vocabulary as the other ReMInD extractors.
 """
 
+import datetime
 import os
 import re
 
@@ -81,6 +82,48 @@ def _excitation(channels, description):
     return wavelengths
 
 
+def _acquisition_date(text, julian_day):
+    """
+    Return the acquisition date as "YYYY-MM-DD HH:MM:SS".
+
+    Args:
+        text (str): the date as NIS-Elements wrote it, in the date format of
+            the acquisition computer: "10/4/2019 10:35:36 AM" on one set to
+            month/day and "04/10/2019 10:35:36" on one set to day/month.
+        julian_day (float | None): the Julian day number of the first frame,
+            which is in UTC.
+
+    The text gives the local time but not the order of day and month; the
+    Julian day settles the order. The text is returned unchanged when it is
+    in neither form, or when both orders are possible dates and the Julian
+    day is missing or matches neither.
+    """
+    dates = set()
+    for date_format in ("%m/%d/%Y", "%d/%m/%Y"):
+        for time_format in ("%I:%M:%S %p", "%H:%M:%S"):
+            try:
+                dates.add(datetime.datetime.strptime(text, f"{date_format} {time_format}"))
+            except ValueError:
+                pass
+    if len(dates) > 1:
+        try:
+            utc = datetime.datetime(1970, 1, 1) + datetime.timedelta(days=julian_day - 2440587.5)
+        except (TypeError, OverflowError):
+            return text
+        # Local time is within a day of UTC; the two readings of the text
+        # are at least a month apart.
+        dates = {date for date in dates if abs(date - utc) < datetime.timedelta(days=1)}
+    return dates.pop().strftime("%Y-%m-%d %H:%M:%S") if len(dates) == 1 else text
+
+
+def _julian_day(nd2_file):
+    """Return the Julian day number of the first frame, or None."""
+    try:
+        return nd2_file.frame_metadata(0).channels[0].time.absoluteJulianDayNumber
+    except Exception:  # older files have no such record, and fail in various ways
+        return None
+
+
 def _known(value, decimals=None):
     """Return value, rounded if decimals is given, or "N/A" if it is None or empty."""
     if value is None or value == "":
@@ -102,9 +145,9 @@ def extract_nd2_metadata(file_path):
     Returns:
         dict: the metadata. A value the file does not record is "N/A", or
         ["N/A"] for the per-channel lists. Notes on particular keys:
-          - "Document Creation Date" is the text NIS-Elements wrote, in the
-            date format of the acquisition computer (e.g. "10/4/2019
-            10:35:36 AM"), so day and month order is not known.
+          - "Document Creation Date" is "YYYY-MM-DD HH:MM:SS" in the local
+            time of the acquisition computer where that can be worked out;
+            see _acquisition_date.
           - "System Name" is the microscope named in the acquisition
             settings. Most ND2 files do not name one.
           - "Objective Medium" is taken from the objective name where it
@@ -132,7 +175,8 @@ def extract_nd2_metadata(file_path):
 
         return {
             "File Name": os.path.basename(file_path),
-            "Document Creation Date": " ".join((text.get("date") or "N/A").split()),
+            "Document Creation Date": _acquisition_date(" ".join((text.get("date") or "N/A").split()),
+                                                        _julian_day(nd2_file)),
             "System Name": microscope.group(1).strip() if microscope else "N/A",
             "Camera Name": camera.group(1).strip() if camera else "N/A",
             "Objective Model": _known(getattr(scope, "objectiveName", None)),
