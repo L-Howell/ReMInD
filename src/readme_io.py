@@ -28,9 +28,6 @@ MULTILINE_FIELDS = ("Notes",)
 
 _SECTION_HEADINGS = ("# Filename Key", "# Extracted Image Metadata")
 
-# Extracted metadata that is a list in memory and written as "a, b, c".
-_LIST_METADATA = ("Channel Names", "Acquisition Modes")
-
 
 def format_readme(header, fields, filename_key=(), metadata=None):
     """
@@ -92,8 +89,7 @@ def parse_readme(text):
                 field with that name. Fields with an empty value are left out.
             filename_key (list[tuple[str, str]]): (keyword, group) rows.
             metadata (dict): the extracted image metadata. All values are
-                strings, except "Channel Names" and "Acquisition Modes",
-                which are split back into lists when they hold several items.
+                strings; a list comes back as the text it was written as.
 
     Lines that are blank, start with "#", or have no ": " separator are
     skipped. Text that is not a ReadMe at all therefore gives three empty
@@ -110,7 +106,9 @@ def parse_readme(text):
 
         if line == "# Filename Key":
             idx += 1
-            while idx < len(lines) and not lines[idx].strip().startswith("#"):
+            # Only the next heading ends the section: a keyword can itself
+            # start with "#", as in "#3 -> Slide 3".
+            while idx < len(lines) and lines[idx].strip() != "# Extracted Image Metadata":
                 row = lines[idx].strip()
                 if " -> " in row:
                     keyword, group = row.split(" -> ", 1)
@@ -125,8 +123,6 @@ def parse_readme(text):
                 row = row.strip()
                 if ": " in row:
                     key, value = row.split(": ", 1)
-                    if key in _LIST_METADATA and ", " in value:
-                        value = value.split(", ")
                     metadata[key] = value
             break
 
@@ -137,7 +133,9 @@ def parse_readme(text):
             end = next((i for i in range(idx + 2, len(lines)) if lines[i].strip() in _SECTION_HEADINGS),
                        len(lines))
             closing = max((i for i in range(idx + 2, end) if lines[i].strip() == "---"), default=end)
-            fields[label] = "\n".join(lines[idx + 2:closing])
+            value = "\n".join(lines[idx + 2:closing])
+            if value:
+                fields[label] = value
             idx = closing
         elif ": " in line and not line.startswith("#"):
             label, value = line.split(": ", 1)
