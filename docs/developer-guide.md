@@ -2,7 +2,7 @@
 
 ## Project Structure
 ```
-remind/
+ReMInD/
 ├── src/
 │   ├── remind.py                  # Main application
 │   ├── readme_io.py               # Reads and writes the ReadMe.txt format
@@ -18,10 +18,11 @@ remind/
 │   │   ├── field_mapping.py        # Turns extracted metadata into form field values
 │   │   └── _common.py              # Shared helpers (combining images, term lookup)
 ├── tests/                         # Automated tests
+├── build_scripts/                 # build.bat and the build requirements
 ├── assets/                        # Source drawings of the icon
-├── tools/                         # Developer utilities (e.g. inspect_oir.py)
+├── tools/                         # Developer utilities (inspect_oir.py)
 ├── docs/                          # Documentation
-└── templates/                     # Example templates
+└── templates/                     # Example template and example ReadMe
 ```
 
 ## Development Setup
@@ -52,7 +53,7 @@ python src/remind.py
   - `__init__()` - Window setup and initialization
   - `build_toolbar()` / `build_form()` - Create the toolbar and the form
   - `load_image_file()` - Reads an image file and fills the form from it
-  - `parse_readme_file()` / `load_template()` - Load a ReadMe.txt or template
+  - `load_readme_file()` / `load_template()` - Load a ReadMe.txt, JSON export or template
   - `generate_readme()` - Creates ReadMe.txt files
   - `export_as_json()` - JSON export functionality
 
@@ -66,8 +67,9 @@ python src/remind.py
 - **_common.py** - Shared helpers: `combine_image_metadata()` for files that hold several images, `parse_xml()`, and `immersion_term()` / `imaging_mode_term()` for translating file values into the form's terms
 
 #### readme_io.py
-- **Purpose**: The ReadMe.txt file format, with no GUI code
+- **Purpose**: The ReadMe.txt and JSON file formats, with no GUI code
 - `format_readme()` builds the file text; `parse_readme()` reads it back
+- `format_json()` and `parse_json()` do the same for the JSON export
 
 #### ToolTip Class
 - **Purpose**: Provides hover help text for form fields
@@ -160,8 +162,6 @@ def extract_new_metadata(file_path):
 ```
 For a format that can hold several images, return a list with one such dict
 per image, each with an `"Image Name"`.
-```python
-```
 
 2. **Add it to `IMAGE_READERS`** in `remind.py`:
 ```python
@@ -175,13 +175,17 @@ IMAGE_READERS = {
 }
 ```
 
-3. **Update file dialog**:
+3. **Add the extension to the file dialog** in `load_fields_from_image()`:
 ```python
 filetypes = [
     ("Image files", "*.czi *.lif *.nd2 *.oir *.tif *.tiff *.new"),  # Add *.new
     ("All files", "*.*"),
 ]
 ```
+
+4. **Add the library** to `requirements.txt` with an exact version, and name the
+   format in the messages and tooltips in `remind.py`, in `help_text.py` and in the
+   documentation.
 
 ### Adding New Form Fields
 
@@ -236,7 +240,8 @@ python -m unittest discover -s tests
 - `tests/test_readme_io.py` - the ReadMe.txt and JSON formats read back what was written
 - `tests/test_field_mapping.py` - which form fields are filled from image metadata, and how several images are combined
 - `tests/test_lif.py` - each image in a LIF file reports its own settings
-- `tests/test_nd2.py` - laser lines are read from the ND2 acquisition settings text
+- `tests/test_nd2.py` - laser lines are read from the ND2 acquisition settings text, and the order of day and month in its date is worked out
+- `tests/test_ome_tiff.py` - an OME-TIFF image uses the objective it names, and pixel sizes are converted to micrometres
 - `tests/test_form.py` - form behaviour (Clear Form, unsaved changes, templates, loading files, examples in empty fields).
   These open the real window and are skipped where no display is available
 
@@ -253,10 +258,9 @@ so check each format by hand with a real file when changing an extractor.
 5. Push to fork and create pull request
 
 ### Pull Request Guidelines
-- Include description of changes
+- Describe the change and the reason for it
 - Check the CI run passes
-- Update documentation if needed
-- Add examples for new features
+- Update the documentation and the Help text where behaviour changes
 
 ### Issue Reporting
 When reporting bugs, include:

@@ -1,264 +1,112 @@
-# ReMInD Troubleshooting Guide
+# ReMInD troubleshooting
 
-## Common Issues and Solutions
+## The program does not start
 
-### Installation and Launch Issues
+- **Windows shows "Windows protected your PC".** `ReMInD.exe` is not signed, so
+  Windows warns the first time it is run. Click **More info**, then **Run anyway**.
+- **Nothing happens for a few seconds.** The program is a single file that unpacks
+  itself each time it starts. Wait a few seconds before trying again.
+- **Antivirus software blocks or removes the file.** Ask your IT support to allow it,
+  or download it again from the
+  [releases page](https://github.com/L-Howell/ReMInD/releases/latest).
+- **Still nothing.** Open a command prompt in the folder that holds the program and
+  run `ReMInD.exe --check check.log`. Then open `check.log`. It says `OK`, or lists
+  what could not be loaded. Include it when you [report the problem](#reporting-a-problem).
 
-#### "Python not found" error
-**Problem**: Error when running from source
-**Solution**: 
-1. Install Python 3.12+ from python.org
-2. Ensure Python is added to system PATH
-3. Try `python3` instead of `python` on Linux/Mac
+## Loading an image file
 
-#### Executable won't start
-**Problem**: ReMInD.exe doesn't launch
-**Solutions**:
-1. Check Windows Defender/antivirus - may block unknown executables
-2. Right-click → "Run as administrator"
-3. Download latest version from GitHub releases
-4. Run `ReMInD.exe --check check.log` from a command prompt, then open
-   `check.log`: it lists any metadata library the program could not load
+### "Only CZI, LIF, ND2, OIR and OME-TIFF files are supported"
 
-#### Missing DLL errors
-**Problem**: "VCRUNTIME140.dll not found" or similar
-**Solution**: Install Microsoft Visual C++ Redistributable
+The file has a different extension. Export it from the acquisition software as
+OME-TIFF, or fill in the form by hand.
 
-### Metadata Extraction Issues
+### "Could not read the ... file"
 
-#### "Could not read the CZI file"
-**Possible Causes**:
-- Corrupted CZI file
-- Very old CZI format version
-- File permissions issue
+The message ends with the reason given by the library that reads the format. Common
+causes:
 
-**Solutions**:
-1. Try opening file in ZEN software first
-2. Copy file to local drive (not network location)
-3. Check file isn't corrupted by opening in ImageJ
+- The file is still being written or copied. Wait for the acquisition or the copy to
+  finish.
+- The file is incomplete or damaged. Check that it opens in the acquisition software
+  or in Fiji.
+- **"No OME-XML metadata found in this TIFF"**: the file is a plain TIFF, which holds
+  no microscope metadata. Fill in the form by hand.
+- **"No images found in LIF file"**: the Leica project holds no images.
 
-#### "Could not read the LIF file"  
-**Possible Causes**:
-- Encrypted LIF file
-- Incomplete file transfer
-- Unsupported LIF version
+If a file opens in the acquisition software but not in ReMInD, please
+[report it](#reporting-a-problem).
 
-**Solutions**:
-1. Re-export from LAS X software
-2. Try different LIF file to test
-3. Check file size - should be >1MB for typical files
+### A field was not filled in, or holds the wrong value
 
-#### "Could not read the ND2 file"
-**Possible Causes**:
-- Very old ND2 format
-- File created with older NIS-Elements
-- Compressed/archived ND2
+ReMInD can only fill in what the file records, and that depends on the microscope and
+its software. The **Extracted Image Metadata** panel lists everything that was read.
+Known cases:
 
-**Solutions**:
-1. Open in NIS-Elements first to verify
-2. Try "Save As" to create new ND2
-3. Check ND2 isn't password protected
+- **Immersion is `Oil`, not `Oil-23` or `Oil-37`.** No file says which oil was used.
+  Choose it yourself.
+- **Immersion is `Multi-immersion`.** The objective takes several media and the file
+  does not reliably say which was used. Replace it with the one you used.
+- **Microscope name did not change.** The template on this computer sets it, and the
+  template's name is kept. See [Templates](user-guide.md#templates).
+- **Leica: a channel has no excitation wavelength.** When one scan uses several
+  lasers, the file does not say which laser belongs to which detector. All the laser
+  lines are listed in the Extracted Image Metadata.
+- **Nikon: Microscope name is empty.** Most ND2 files do not name the microscope.
+- **Nikon: the date is not in the form `YYYY-MM-DD HH:MM:SS`.** Some older ND2 files
+  record the date only as text in the format of the acquisition computer. Check the
+  order of day and month.
+- **A field lists several values separated by `;`.** The file holds several images
+  taken with different settings. See
+  [Files that hold several images](user-guide.md#files-that-hold-several-images).
 
-#### "Could not read the OIR file"
-**Possible Causes**:
-- OIR file created by an unsupported cellSens version
-- Incomplete file transfer or partial write
-- File permissions issue
+If the acquisition software shows a value that ReMInD did not find, please
+[report it](#reporting-a-problem).
 
-**Solutions**:
-1. Open in cellSens/OlyVIA software first to verify integrity, re-save and try again
-2. Copy file to local drive (not network location)
-3. Check file size — very small files may be incomplete or corrupted 
+## Templates
 
-#### No metadata appears after extraction
-**Problem**: Extraction succeeds but fields remain empty
-**Causes**:
-- File has minimal embedded metadata
-- Metadata fields don't match expected format
+### The template is not loaded
 
-**Solutions**:
-1. Check "Extracted Image Metadata" panel for raw data
-2. Manually enter information from acquisition software
-3. Contact file creator for acquisition details
+- The file name must end in `_ReadME_template.txt`.
+- The file must be in the folder that holds `ReMInD.exe` itself. The folder of a
+  shortcut to it is not searched.
+- Templates are read only when the program starts. Restart it after changing one.
+- If the folder holds several templates, only the first in alphabetical order is used.
 
-### File Operations Issues
+### A value in the template does not appear
 
-#### Can't save ReadMe.txt
-**Problem**: Permission denied when saving
-**Solutions**:
-1. Choose different save location (not C:\ root)
-2. Run as administrator
-3. Check folder isn't read-only
-4. Ensure adequate disk space
+Each line must be the field's label exactly as it appears in the form, then a colon
+and a space, then the value, e.g. `Microscope name: Confocal 5`. Lines with any other
+label are ignored.
 
-#### Template not loading
-**Problem**: Template isn't loaded at startup
-**Requirements**:
-- Filename must end with `_ReadME_template.txt`
-- File must be in same folder as ReMInD.exe itself. The folder of a shortcut
-  to it, or the folder ReMInD was started from, is not searched
-- File must be valid ReadMe.txt format
+## Saving and loading a ReadMe
 
-**Solutions**:
-1. Check filename spelling and case
-2. Move template to correct location
-3. Test template by loading manually
+- **"Could not write file"**: the folder may be read-only, or the file may be open in
+  another program. Save somewhere else, or close the other program.
+- **"... holds no ReMInD fields"**: the file has no lines of the form `Label: value`.
+  Check that you chose the right file.
+- **"Could not load file"** with a message about `utf-8`: the file was saved by an
+  editor in a different encoding. Save it again as UTF-8.
+- **Some fields are empty after loading.** Lines whose label does not match a field
+  in the form are ignored. This happens when a label was changed by hand, and with
+  files from version 3.0.0 or earlier, in which the Filename Key was written
+  differently and one field had a different name.
 
-#### Can't load existing ReadMe
-**Problem**: Error loading previously saved ReadMe
-**Possible Causes**:
-- File encoding issues (non-UTF-8)
-- Manually edited file with syntax errors
-- File corruption
+## The window
 
-**Solutions**:
-1. Open file in text editor to check format
-2. Ensure consistent line endings
-3. Re-create from backup if available
+- **The window does not fit the screen.** The window can be resized, and the form
+  scrolls. In a narrow window the panels are stacked in one column.
+- **The mouse wheel does not scroll the form.** Over the Notes box and the Extracted
+  Image Metadata box the wheel scrolls that box. Move the pointer elsewhere.
 
-### Interface Issues
+## Reporting a problem
 
-#### Window too large for screen
-**Problem**: Application doesn't fit on screen
-**Solutions**:
-1. Resize window by dragging edges
-2. Use scroll bars to navigate
-3. Update to latest version (better screen handling)
+[Open an issue](https://github.com/L-Howell/ReMInD/issues) and include:
 
-#### Text too small to read
-**Problem**: GUI text is hard to read
-**Solutions**:
-1. Increase Windows display scaling
-2. Try different monitor resolution
+- the ReMInD version (shown in the window title and in Help);
+- the Windows version;
+- the image file format, and the microscope and acquisition software version if you
+  know them;
+- the exact error message, or a screenshot;
+- what you did before the problem appeared.
 
-#### Buttons not responding
-**Problem**: Clicking buttons has no effect
-**Possible Causes**:
-- Application frozen
-- Modal dialog hidden behind window
-- System resource issues
-
-**Solutions**:
-1. Check for hidden dialog boxes
-2. Restart application
-3. Close other programs to free memory
-4. Restart computer if persistent
-
-### Data Issues
-
-#### Special characters not displaying
-**Problem**: Accented characters or symbols show as "?" 
-**Solution**: 
-1. Ensure UTF-8 encoding when saving
-2. Use Windows Character Map for special symbols
-3. Avoid problematic characters in filenames
-
-#### Date format issues
-**Problem**: Dates not parsing correctly
-**Solution**: Use ISO format (YYYY-MM-DD HH:MM:SS)
-
-#### Long text cut off
-**Problem**: Text fields truncate long entries
-**Solutions**:
-1. Use Notes field for lengthy descriptions
-2. Abbreviate where possible
-3. Consider external documentation for very detailed info
-
-## Error Messages
-
-### "No images found in LIF file"
-**Meaning**: LIF file doesn't contain recognizable image series
-**Action**: Check file in LAS X software, may be corrupted
-
-### "Unsupported file format"
-**Meaning**: File type not supported for metadata extraction
-**Action**: Convert to supported format (CZI/LIF/ND2/OIR/OME-TIFF) or enter manually
-
-### "Permission denied"
-**Meaning**: Can't write to selected location
-**Action**: Choose different folder or run as administrator
-
-## Performance Issues
-
-#### Slow metadata extraction
-**Causes**: 
-- Very large files (>2GB)
-- Network file locations
-- Limited system resources
-
-**Solutions**:
-1. Copy files to local SSD before processing
-2. Close other applications
-3. Process smaller file sets
-4. Consider more powerful computer for routine use
-
-#### Application freezing
-**Causes**:
-- Insufficient memory
-- Corrupted file processing
-- System resource conflicts
-
-**Solutions**:
-1. Restart application
-2. Process files individually
-3. Check system resources (Task Manager)
-4. Update graphics drivers
-
-## Getting Additional Help
-
-### Before Contacting Support
-1. Try restarting the application
-2. Test with a different file
-3. Check this troubleshooting guide
-4. Review the user guide for proper procedures
-
-### Information to Include
-When reporting issues, please provide:
-- ReMInD version number
-- Operating system and version
-- File type and approximate size
-- Exact error message (screenshot helpful)
-- Steps to reproduce the problem
-- Whether issue is consistent or intermittent
-
-### Contact Information
-- **GitHub Issues**: Create issue at repository page
-- **UQ Users**: Contact IMB Microscopy facility
-- **Email**: n.condon@uq.edu.au (for University of Queensland users)
-
-### Workarounds
-
-#### Manual metadata entry
-If automatic extraction fails:
-1. Open image file in acquisition software
-2. Export metadata as text file
-3. Copy relevant information to ReMInD form
-4. Include original metadata file with data
-
-#### Alternative file formats
-If specific format isn't supported:
-1. Export images as OME-TIFF (preserves metadata)
-2. Save acquisition parameters as text file
-3. Use ImageJ to extract basic information
-4. Consult acquisition software documentation
-
-#### Batch processing
-For multiple files:
-1. Create template from first file
-2. Use template for subsequent files
-3. Modify only differences between experiments
-4. Consider scripting for very large datasets
-
-## Known Limitations
-
-### File Format Support
-- Only CZI, LIF, ND2, OIR, and OME-TIFF formats supported for auto-extraction
-- Plain (non-OME) TIFFs are not supported — only TIFFs with embedded OME-XML
-- oirfile (dependency for OIR metadata extraction) is in the early stages of development - functionality not guaranteed
-- Some very old format versions may not work
-- Encrypted or password-protected files not supported
-
-### Metadata Mapping
-- Not all metadata fields can be automatically mapped
-- Some instrument-specific settings require manual entry
-- Field mapping may vary between software versions
+A small example file that shows the problem helps most of all.

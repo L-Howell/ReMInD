@@ -92,7 +92,7 @@ that differ between its images are all listed.
 
 Copy [`templates/example_ReadME_template.txt`](templates/example_ReadME_template.txt),
 edit its two values, and give it a name ending in `_ReadME_template.txt`. See
-[Templates](docs/user-guide.md#4-templates) in the user guide.
+[Templates](docs/user-guide.md#templates) in the user guide.
 
 ## For developers
 
