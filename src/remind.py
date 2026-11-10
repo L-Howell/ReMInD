@@ -142,9 +142,12 @@ class ToolTip:
         y = self.widget.winfo_rooty() + min(self.widget.winfo_height(), 30) + 2
         self.tooltip = tk.Toplevel(self.widget)
         self.tooltip.wm_overrideredirect(True)
-        self.tooltip.geometry(f"+{x}+{y}")
         ttk.Label(self.tooltip, text=self.text, justify="left",
                   relief="solid", borderwidth=1, padding=(4, 2)).pack()
+        # Keep the tooltip on screen for widgets near the right edge.
+        self.tooltip.update_idletasks()
+        x = max(0, min(x, self.widget.winfo_screenwidth() - self.tooltip.winfo_reqwidth()))
+        self.tooltip.geometry(f"+{x}+{y}")
 
     def hide(self, event=None):
         if self.tooltip:
@@ -178,6 +181,7 @@ class REMBIGUI:
         self.build_toolbar()
         self.setup_scrollable_window()
         self.build_form()
+        self.show_metadata_in_window({})
 
         self.dark_mode = False
         self.toggle_dark_mode()  # start in dark mode
@@ -214,6 +218,12 @@ class REMBIGUI:
 
         self.dark_mode_btn = ttk.Button(self.toolbar, text="Dark", command=self.toggle_dark_mode)
         self.dark_mode_btn.pack(side="right", padx=(12, 0))
+
+        # Says what the last action did, since success is not shown in a popup.
+        self.status_label = ttk.Label(
+            self.root, padding=(10, 0, 10, 6),
+            text="Start by loading an image file, or fill in the form by hand.")
+        self.status_label.pack(side="top", fill="x")
 
     def setup_scrollable_window(self):
         """Create the scrolling area that holds the form."""
@@ -331,6 +341,7 @@ class REMBIGUI:
         metadata_frame = ttk.LabelFrame(parent, text="Extracted Image Metadata", padding=8)
         metadata_frame.pack(fill="x", pady=(0, 8))
         self.metadata_text = tk.Text(metadata_frame, height=8, wrap="none", state="disabled")
+        self.metadata_text.tag_configure("hint", foreground="gray", font="TkTextFont")
         scrollbar = ttk.Scrollbar(metadata_frame, command=self.metadata_text.yview)
         self.metadata_text.config(yscrollcommand=scrollbar.set)
         scrollbar.pack(side="right", fill="y")
@@ -406,6 +417,7 @@ class REMBIGUI:
         try:
             with open(save_path, "w", encoding="utf-8") as f:
                 f.write(self.readme_text())
+            self.status_label.configure(text=f"Saved {os.path.basename(save_path)}.")
         except Exception as e:
             messagebox.showerror("Error", f"Could not write file: {e}")
 
@@ -421,6 +433,8 @@ class REMBIGUI:
         for label, _, _ in self.fields:
             self.set_field(label, "")
         self.fill_form(self.template_fields, self.template_filename_key, {})
+        self.status_label.configure(
+            text="Form cleared and template values put back." if self.template_fields else "Form cleared.")
 
     def add_condition_row(self, keyword="", group=""):
         """Append a (filename keyword -> group/treatment) row to the Filename Key table."""
@@ -484,6 +498,7 @@ class REMBIGUI:
         content = self.read_readme_file(path)
         if content:
             self.fill_form(*content)
+            self.status_label.configure(text=f"Loaded {os.path.basename(path)}.")
 
     def load_template(self, path):
         """Load a template into the form and keep its content for Clear Form."""
@@ -495,6 +510,8 @@ class REMBIGUI:
         # written into the ReadMe of every later experiment.
         self.template_fields, self.template_filename_key, _ = content
         self.fill_form(self.template_fields, self.template_filename_key, {})
+        self.status_label.configure(
+            text=f"Fields pre-filled from this computer's template, {os.path.basename(path)}.")
 
     def load_startup_template(self):
         """Load the template stored next to the program, if there is one.
@@ -638,6 +655,9 @@ class REMBIGUI:
             self.set_field(label, value)
         self.set_field("Image format", ext)
         self.show_metadata_in_window(metadata)
+        self.status_label.configure(
+            text=f"Filled {len(form_values) + 1} fields from {os.path.basename(path)}. "
+                 f"Its {len(metadata)} metadata items are listed at the bottom of the form.")
 
     def show_metadata_in_window(self, metadata_dict):
         """Make metadata_dict the extracted image metadata: it is shown in
@@ -650,6 +670,14 @@ class REMBIGUI:
             if isinstance(v, list):
                 v = ", ".join(str(i) for i in v)
             self.metadata_text.insert(tk.END, f"{k}: {v}\n")
+        if not metadata_dict:
+            self.metadata_text.insert(
+                tk.END,
+                "No image file loaded.\n"
+                "Use 'Load Fields from Image File' to fill in fields from a CZI, LIF, ND2, OIR\n"
+                "or OME-TIFF file. The metadata read from the file is listed here and saved\n"
+                "with the ReadMe.txt.",
+                "hint")
         self.metadata_text.config(state="disabled")
 
     def toggle_dark_mode(self):
@@ -715,6 +743,7 @@ class REMBIGUI:
         try:
             with open(save_path, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=2)
+            self.status_label.configure(text=f"Saved {os.path.basename(save_path)}.")
         except Exception as e:
             messagebox.showerror("Error", f"Could not write JSON file: {e}")
 
