@@ -1,7 +1,7 @@
 # ReMInD user guide
 
-ReMInD records what a microscopy experiment was in a `ReadMe.txt` that you keep beside
-the raw data. This guide covers each part of the window. For problems, see
+ReMInD records the metadata for an imaging experiment in a `ReadMe.txt` that you keep
+beside the raw data. This guide covers each part of the window. For problems, see
 [Troubleshooting](troubleshooting.md).
 
 ## Quick start
