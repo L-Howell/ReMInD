@@ -47,7 +47,6 @@ The tool is especially useful for users of light microscopy and other imaging sy
 ### Adaptive Interface
 - **Responsive design** - adapts to different screen resolutions (1024x768+)
 - **Scrollable interface** for low-resolution displays
-- **Scalable fonts** (A+/A- buttons)
 - **Two-row button layout** for narrow screens
 - **Dark/light mode toggle** with Windows title bar theming
 

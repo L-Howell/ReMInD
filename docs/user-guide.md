@@ -7,15 +7,15 @@ ReMInD helps researchers capture essential metadata for imaging experiments, gen
 
 ### First Launch
 ReMInD looks for template files (names ending in `_ReadME_template.txt`) in the same folder as the executable:
-- **One template** - it is loaded automatically and its values pre-fill the form
-- **Several templates** - a dialog lets you select one, or skip to start with a blank form
-- **No templates** - the form starts blank
+- **Template found** - it is loaded automatically and its values pre-fill the form
+- **No template** - the form starts blank
+
+Keep one template per computer. If there are several, the first in alphabetical order is used.
 
 ### Interface Layout
 - **Form fields** - Left column labels, right column inputs
 - **Metadata panel** - Shows extracted image metadata
-- **Control buttons** - Generate, Load, Clear, Help, etc.
-- **Font controls** - A+/A- buttons to adjust text size
+- **Control buttons** - Generate, Load, Clear, Help, Export as JSON
 
 ## Core Features
 
@@ -108,8 +108,7 @@ ReadMe.txt file with a name ending in `_ReadME_template.txt`, stored in the
 same folder as the ReMInD executable.
 
 #### Using Templates
-- A single template is loaded automatically at startup
-- With several templates, choose one from the dialog or skip
+- The template is loaded automatically at startup
 - **Clear Form** empties the form and then puts the template's values back,
   so the next user starts from the template
 - If the template sets **Microscope name**, loading an image file does not
@@ -187,7 +186,7 @@ experiment the template was made from.
 
 #### Window too large/small
 - **Cause**: Screen resolution issues
-- **Solution**: Use A+/A- buttons to adjust font size, resize window manually
+- **Solution**: Resize the window manually and use the scroll bar; change Windows display scaling for larger or smaller text
 
 #### Missing fields after loading ReadMe
 - **Cause**: File format changes between versions  

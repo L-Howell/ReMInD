@@ -217,7 +217,7 @@ class REMBIGUI:
         self.build_form()
         # Start in dark mode by default (user can switch with the toggle).
         self.toggle_dark_mode()
-        self.root.after(200, self.select_and_load_template)
+        self.root.after(200, self.load_startup_template)
 
     def build_form(self):
         # Use self.form_root instead of self.root for all grid operations
@@ -340,9 +340,6 @@ class REMBIGUI:
             ("Load ReadMe.txt", self.load_existing),
             ("Clear Form", self.clear_form),
             ("Help", self.show_help),
-            ("Exit", self.root.quit),
-            ("A+", self.increase_font_size),
-            ("A-", self.decrease_font_size),
             ("Export as JSON", self.export_as_json),
         ]
 
@@ -458,7 +455,6 @@ class REMBIGUI:
         try:
             with open(save_path, "w", encoding="utf-8") as f:
                 f.write(self.readme_text())
-            messagebox.showinfo("Success", "ReadMe.txt generated successfully.")
         except Exception as e:
             messagebox.showerror("Error", f"Could not write file: {e}")
 
@@ -555,39 +551,12 @@ class REMBIGUI:
         self.template_fields, self.template_filename_key, _ = content
         self.fill_form(self.template_fields, self.template_filename_key, {})
 
-    def select_and_load_template(self):
-        """Offer the templates stored next to the program. A single template
-        is loaded without asking."""
-        template_files = find_templates(application_folder())
-        if not template_files:
-            return
-        if len(template_files) == 1:
-            self.load_template(template_files[0])
-            return
-
-        def load_template_and_close(fname):
-            popup.destroy()
-            self.load_template(fname)
-
-        popup = tk.Toplevel(self.root)
-        popup.title("Select a Metadata Template")
-        popup.geometry("400x200")
-        popup.transient(self.root)  # Keep on top of the main window
-        popup.grab_set()            # Make it modal
-        popup.focus_force()         # Force focus to the popup
-
-        tk.Label(popup, text="Select a metadata template to load:", font=("Segoe UI", 10, "bold")).pack(pady=10)
-
-        button_frame = tk.Frame(popup)
-        button_frame.pack(pady=5, fill="both", expand=True)
-
-        for fname in template_files:
-            b = tk.Button(button_frame, text=os.path.basename(fname), width=40,
-                          command=lambda f=fname: load_template_and_close(f))
-            b.pack(pady=2)
-
-        tk.Button(popup, text="Skip / Clear Form", command=popup.destroy).pack(pady=10)
-
+    def load_startup_template(self):
+        """Load the template stored next to the program, if there is one.
+        With several, the first in alphabetical order is used."""
+        templates = find_templates(application_folder())
+        if templates:
+            self.load_template(templates[0])
 
     def show_help(self):
         help_window = tk.Toplevel(self.root)
@@ -642,9 +611,9 @@ class REMBIGUI:
         help_text.insert("end", "📖 Templates \n", "subtitle")
         help_text.insert("end", "\t• The program automatically looks for any template files stored in the same location as the executable.\n")
         help_text.insert("end", "\t• Any template file must be saved as *_ReadMe_template.txt with something in place of the *.\n")
-        help_text.insert("end", "\t• A single template is loaded automatically, and 'Clear Form' returns to its values.\n")
+        help_text.insert("end", "\t• The template is loaded automatically, and 'Clear Form' returns to its values.\n")
         help_text.insert("end", "\t• If the template sets the microscope name, loading an image file does not change it.\n")
-        help_text.insert("end", "\t• If there are several templates, a popup on startup lets you choose one or skip.\n\n")
+        help_text.insert("end", "\t• Keep one template per computer. If there are several, the first in alphabetical order is used.\n\n")
         
         help_text.insert("end", "📁 Export as JSON\n", "subtitle")
         help_text.insert("end", "\t• Export all form data and extracted metadata as a structured JSON file.\n")
@@ -722,10 +691,7 @@ class REMBIGUI:
         for label, value in form_values.items():
             self.set_field(label, value)
         self.set_field("Image format", ext)
-        self.text_fields["Notes"].insert(tk.END, f"\n[Imported from {format_name}]\n")
-
         self.show_metadata_in_window(metadata)
-        messagebox.showinfo("Success", f"Fields loaded from {format_name} metadata.")
 
     def show_metadata_in_window(self, metadata_dict):
         """Make metadata_dict the extracted image metadata: it is shown in
@@ -851,17 +817,6 @@ class REMBIGUI:
         for child in widget.winfo_children():
             self._set_widget_light(child)
 
-    def increase_font_size(self):
-        self.base_font_size += 1
-        self.app_font.configure(size=self.base_font_size)
-        self.bold_font.configure(size=self.base_font_size)
-
-    def decrease_font_size(self):
-        if self.base_font_size > 6:
-            self.base_font_size -= 1
-            self.app_font.configure(size=self.base_font_size)
-            self.bold_font.configure(size=self.base_font_size)
-
     def export_as_json(self):
         data = dict(self.field_values())
 
@@ -882,7 +837,6 @@ class REMBIGUI:
         try:
             with open(save_path, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=2)
-            messagebox.showinfo("Success", "Metadata exported as JSON successfully.")
         except Exception as e:
             messagebox.showerror("Error", f"Could not write JSON file: {e}")
 

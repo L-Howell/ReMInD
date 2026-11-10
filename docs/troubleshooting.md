@@ -120,17 +120,15 @@
 #### Window too large for screen
 **Problem**: Application doesn't fit on screen
 **Solutions**:
-1. Use A- button to decrease font size
-2. Resize window by dragging edges
-3. Use scroll bars to navigate
-4. Update to latest version (better screen handling)
+1. Resize window by dragging edges
+2. Use scroll bars to navigate
+3. Update to latest version (better screen handling)
 
 #### Text too small to read
 **Problem**: GUI text is hard to read
 **Solutions**:
-1. Use A+ button to increase font size
-2. Increase Windows display scaling
-3. Try different monitor resolution
+1. Increase Windows display scaling
+2. Try different monitor resolution
 
 #### Buttons not responding
 **Problem**: Clicking buttons has no effect

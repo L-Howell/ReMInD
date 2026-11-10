@@ -84,7 +84,7 @@ class FormTest(unittest.TestCase):
                                "Storage Location: \\\\server\\Confocal5\\\n"
                                "Microscope name: Confocal 5\n"
                                "\n# Extracted Image Metadata\nSystem Name: LSM 880\n")
-        self.app.select_and_load_template()  # the only template loads unasked
+        self.app.load_startup_template()
         os.remove(path)  # Clear Form must not depend on the file staying put
         # Metadata left in a template belongs to some earlier experiment.
         self.assertNotIn("Extracted Image Metadata", self.app.readme_text())

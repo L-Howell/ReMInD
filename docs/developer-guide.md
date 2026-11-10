@@ -238,13 +238,12 @@ The single executable is written to the `dist/` directory.
 ### Manual Testing Checklist
 - [ ] Application launches without errors
 - [ ] All form fields accept input
-- [ ] Template loading works: one template loads automatically, several show the dialog, Clear Form returns to the template
+- [ ] Template loading works: a template next to the executable loads automatically, and Clear Form returns to it
 - [ ] Metadata extraction for each format (CZI, LIF, ND2, OIR, OME-TIFF)
 - [ ] Filename Key: add/clear rows, round-trip through ReadMe.txt and JSON
 - [ ] ReadMe.txt generation
 - [ ] JSON export
 - [ ] File loading and form population
-- [ ] Font size adjustment
 - [ ] Help dialog displays
 - [ ] Responsive design on different screen sizes
 
