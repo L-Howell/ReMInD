@@ -79,7 +79,6 @@ def extract_metadata(demo_czi_read):
 
         # --- Document info ---
         document_name = safe_get(info_meta, "Document", "Name", default=os.path.splitext(os.path.basename(demo_czi_read))[0])
-        document_user_name = safe_get(info_meta, "Document", "UserName")
         document_creation_date = safe_get(info_meta, "Document", "CreationDate")
 
         # --- Application info ---
@@ -273,7 +272,6 @@ def extract_metadata(demo_czi_read):
         # --- Assemble metadata output ---
         metadata_output = {
             "Document Name": document_name,
-            "Document User Name": document_user_name,
             "Document Creation Date": document_creation_date,
             "Application Name": application_name,
             "Application Version": application_version,

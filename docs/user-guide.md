@@ -58,9 +58,12 @@ both the `ReadMe.txt` and the JSON export, and is reloaded when you open a saved
 - **OIR files** (Olympus/Evident) - Acquisition settings, channels, objectives
 - **OME-TIFF files** - Embedded OME-XML (objective, channels, pixel sizes)
 
-> For container formats that hold several images (e.g. LIF, multi-series OME-TIFF),
-> ReMInD reports the most common value for each metadata field across all images,
-> so a leading overview/thumbnail image does not skew the result.
+> A LIF project or multi-series OME-TIFF can hold several images taken with
+> different settings. ReMInD reads every image. Where they agree, the value is
+> shown once. Where they differ, every distinct value is listed, most common
+> first: form fields show e.g. `63x/1.40 OIL; 10x/0.40 DRY`, and the metadata
+> panel also says which images each value belongs to. Z-stack and Time series
+> are set to `Both` when only some of the images have them.
 
 #### How to Extract Metadata
 1. Click **"Load Fields from Image File"**

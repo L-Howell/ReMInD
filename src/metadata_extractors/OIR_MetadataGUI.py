@@ -196,7 +196,6 @@ def extract_oir_metadata(file_path):
 
         metadata_output = {
             "Document Creation Date":   acq_date,
-            "Document User Name":       'N/A',
             "System Name":              system_name,
             "Objective Model":          objective_str,
             "Objective NA":             obj_na,

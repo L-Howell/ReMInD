@@ -4,9 +4,8 @@ import unittest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from metadata_extractors._common import most_common_metadata
-from metadata_extractors.field_mapping import metadata_to_form_fields
-from metadata_extractors.Nd2_v2a import map_nd2_to_remind_fields
+from metadata_extractors._common import combine_image_metadata
+from metadata_extractors.field_mapping import merge_form_fields, metadata_to_form_fields
 
 # One value for every key the mappers read.
 COMMON_METADATA = {
@@ -19,19 +18,6 @@ COMMON_METADATA = {
     "Size Z": 12,
     "Size T": 1,
 }
-ND2_METADATA = {
-    "Document Creation Date": "2/06/2026 10:00:00 AM",
-    "System Name": "Ti2",
-    "Objective Model": "Plan Apo",
-    "Objective Magnification": "60.0",
-    "Objective NA": "1.4",
-    "Objective Medium": "1.515",
-    "Modality": "Widefield",
-    "Channel Names": ["DAPI", "GFP"],
-    "Z Slices": "12",
-    "Time Points": "1",
-}
-
 
 class FieldMappingTest(unittest.TestCase):
     def test_missing_values_are_left_out(self):
@@ -46,26 +32,30 @@ class FieldMappingTest(unittest.TestCase):
             "Channel Names": ["N/A"],
         }
         self.assertEqual(metadata_to_form_fields(metadata), {})
-        self.assertEqual(
-            map_nd2_to_remind_fields({"Objective Medium": "N/A", "Channel Names": ["N/A"],
-                                      "Z Slices": "N/A", "Time Points": "N/A"}),
-            {},
-        )
 
     def test_oil_is_not_given_a_temperature_grade(self):
         # The form offers Oil-23 and Oil-37, but no image file says which was
         # used, so filling either would record a guess.
         self.assertEqual(metadata_to_form_fields(COMMON_METADATA)["Immersion"], "Oil")
-        self.assertEqual(map_nd2_to_remind_fields(ND2_METADATA)["Immersion"], "Oil")
 
     def test_specialist_modes_fill_specialist_modality(self):
         mapped = metadata_to_form_fields({"Acquisition Modes": ["TotalInternalReflection"]})
         self.assertEqual(mapped, {"Specialist modality": "TIRF"})
 
-    def test_most_common_value_wins_over_first_image(self):
-        overview = {"Objective Model": "10x", "Channel Names": ["BF"]}
-        image = {"Objective Model": "63x", "Channel Names": ["DAPI", "GFP"]}
-        self.assertEqual(most_common_metadata([overview, image, image]), image)
+    def test_images_with_different_settings_are_all_reported(self):
+        # A LIF project often holds an overview and the real images, taken
+        # with different objectives. Neither may be dropped from the record.
+        overview = {"Image Name": "Overview", "Objective Model": "10x", "Size Z": 1, "System Name": "SP8"}
+        stack = {"Image Name": "Stack", "Objective Model": "63x", "Size Z": 20, "System Name": "SP8"}
+        images = [overview, dict(stack, **{"Image Name": "Stack 1"}), dict(stack, **{"Image Name": "Stack 2"})]
+
+        combined = combine_image_metadata(images)
+        self.assertEqual(combined["System Name"], "SP8")
+        self.assertEqual(combined["Objective Model"], "63x [Stack 1, Stack 2]; 10x [Overview]")
+        self.assertEqual(combined["Image Count"], 3)
+
+        merged = merge_form_fields([metadata_to_form_fields(image) for image in images])
+        self.assertEqual(merged, {"Microscope name": "SP8", "Objective": "63x; 10x", "Z-stack": "Both"})
 
 
 if __name__ == "__main__":

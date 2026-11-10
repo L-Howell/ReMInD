@@ -1,11 +1,7 @@
 """
 Extract metadata from OME-TIFF files using the ome-types library.
-Returns key image, instrument, and channel metadata as a structured dictionary
-using the same vocabulary as the other ReMInD extractors.
-
-For multi-image OME-TIFFs the per-image metadata is collapsed to the most
-common value per field (see most_common_metadata), so a leading overview or
-thumbnail image does not skew the result.
+Returns key image, instrument, and channel metadata as one dictionary per
+image, using the same vocabulary as the other ReMInD extractors.
 """
 
 import os
@@ -13,9 +9,9 @@ import os
 from ome_types import from_tiff
 
 try:
-    from ._common import most_common_metadata, immersion_term, imaging_mode_term
+    from ._common import immersion_term, imaging_mode_term
 except ImportError:  # allow running as a standalone script
-    from _common import most_common_metadata, immersion_term, imaging_mode_term
+    from _common import immersion_term, imaging_mode_term
 
 
 def _val(enum_or_value):
@@ -59,25 +55,6 @@ def _resolve_objective(ome, image):
     if objective is None and instrument.objectives:
         objective = instrument.objectives[0]
     return objective, instrument
-
-
-def _resolve_experimenter(ome, image):
-    if image.experimenter_ref is not None:
-        exp = next(
-            (e for e in ome.experimenters if e.id == image.experimenter_ref.id), None
-        )
-        if exp is not None:
-            return exp
-    return ome.experimenters[0] if ome.experimenters else None
-
-
-def _experimenter_name(exp):
-    if exp is None:
-        return "N/A"
-    if exp.user_name:
-        return exp.user_name
-    full = " ".join(p for p in (exp.first_name, exp.last_name) if p)
-    return full or "N/A"
 
 
 def _image_metadata(ome, image):
@@ -146,8 +123,8 @@ def _image_metadata(ome, image):
     acq_date = image.acquisition_date.isoformat() if image.acquisition_date else "N/A"
 
     return {
+        "Image Name":              image.name or image.id,
         "Document Creation Date":  acq_date,
-        "Document User Name":      _experimenter_name(_resolve_experimenter(ome, image)),
         "System Name":             system_name,
         "Objective Model":         objective_str,
         "Objective NA":            obj_na,
@@ -177,7 +154,7 @@ def extract_ometiff_metadata(file_path):
     Extract metadata from an OME-TIFF file.
 
     Returns:
-        dict: the metadata
+        list[dict]: one metadata dict per image in the file.
 
     Raises:
         Exception: if the file contains no parseable OME-XML metadata.
@@ -193,12 +170,8 @@ def extract_ometiff_metadata(file_path):
     if not ome.images:
         raise Exception("OME-TIFF contains no image metadata.")
 
-    per_image = [_image_metadata(ome, img) for img in ome.images]
-    metadata_output = most_common_metadata(per_image)
-    metadata_output["Image Count"] = len(ome.images)
-    metadata_output["File Name"] = os.path.basename(file_path)
-
-    return metadata_output
+    file_name = os.path.basename(file_path)
+    return [{**_image_metadata(ome, image), "File Name": file_name} for image in ome.images]
 
 
 # CLI usage for testing

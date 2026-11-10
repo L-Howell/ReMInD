@@ -40,7 +40,7 @@ The tool is especially useful for users of light microscopy and other imaging sy
   - **OIR files** (Olympus/Evident) - acquisition settings, channels, objectives
   - **OME-TIFF files** - reads embedded OME-XML (objective, channels, pixel sizes)
 - **Smart field mapping** - automatically populates relevant form fields
-- **Representative metadata for container formats** - multi-image files (e.g. LIF, multi-series OME-TIFF) use the most common value per field rather than the first image
+- **Multi-image files** - every image in a LIF project or multi-series OME-TIFF is read; settings that differ between images are all listed
 - **Raw metadata display** - view complete extracted metadata
 - **Round-trip compatibility** - reload metadata when opening saved ReadME files
 

@@ -1,189 +1,263 @@
+"""
+Extract metadata from Leica LIF files using the readlif library.
+
+A LIF file is a container: it can hold many images, each acquired with its
+own objective, channels and scan settings. Every value is therefore read
+from the XML of the image it belongs to, and one dict is returned per image.
+
+Two layouts of the hardware settings are understood: the "HardwareSetting"
+block written by LAS X, and the older "HardwareSettingList" block written by
+LAS AF. Values that an image does not record are reported as "N/A".
+"""
+
+import datetime
+
 from readlif.reader import LifFile
-import re
-import xml.etree.ElementTree as ET
+
+try:
+    from ._common import immersion_from_refractive_index, immersion_term, imaging_mode_term
+except ImportError:  # allow running as a standalone script
+    from _common import immersion_from_refractive_index, immersion_term, imaging_mode_term
+
+
+# DimID values used by Leica for the spatial and time axes.
+_AXES = {"1": "X", "2": "Y", "3": "Z", "4": "T"}
+
+
+def _image_elements(node):
+    """Yield the XML element of every image in the file, in project order.
+    Images can be nested inside folders and inside other images."""
+    for element in node.findall("./Children/Element") or node.findall("./Element"):
+        if element.find("./Data/Image") is not None:
+            yield element
+        yield from _image_elements(element)
+
+
+def _number(text, decimals=3):
+    """Return text as a rounded number (an int when it is whole), or "N/A"
+    if it is not a number."""
+    try:
+        value = round(float(text), decimals)
+    except (TypeError, ValueError):
+        return "N/A"
+    return int(value) if value.is_integer() else value
+
+
+def _creation_date(image):
+    """
+    Return the time of the image's first frame as "YYYY-MM-DD HH:MM:SS" in
+    the time zone of this computer, or "N/A" if the image has no time stamps.
+    """
+    stamps = image.find("TimeStampList")
+    if stamps is None:
+        return "N/A"
+    try:
+        if stamps.text and stamps.text.strip():
+            # LAS X: space-separated hexadecimal values.
+            ticks = int(stamps.text.split()[0], 16)
+        else:
+            # LAS AF: one element per stamp, the value split into two halves.
+            first = stamps.find("TimeStamp")
+            ticks = (int(first.get("HighInteger")) << 32) | int(first.get("LowInteger"))
+    except (AttributeError, TypeError, ValueError, IndexError):
+        return "N/A"
+    # The value is a Windows FILETIME: 100 ns steps since 1601-01-01 UTC.
+    utc = datetime.datetime(1601, 1, 1, tzinfo=datetime.timezone.utc) \
+        + datetime.timedelta(microseconds=ticks // 10)
+    return utc.astimezone().strftime("%Y-%m-%d %H:%M:%S")
+
+
+def _dimensions(image):
+    """Return {axis: (number of elements, length)} for the X, Y, Z and T
+    axes the image has. Lengths are in metres, or seconds for T."""
+    dimensions = {}
+    for d in image.findall("./ImageDescription/Dimensions/DimensionDescription"):
+        axis = _AXES.get(d.get("DimID"))
+        if axis:
+            dimensions[axis] = (int(d.get("NumberOfElements")), float(d.get("Length") or 0))
+    return dimensions
+
+
+def _clean_dye(name):
+    """Turn a dye name such as "Leica/HOECHST 33258." into "HOECHST 33258"."""
+    return name.split("/", 1)[-1].strip(" .")
+
+
+def _las_x_settings(hardware):
+    """Read a LAS X "HardwareSetting" block."""
+    definition = next((child for child in hardware if child.tag.endswith("SettingDefinition")), None)
+    if definition is None:
+        return {}
+
+    # A sequential scan stores one settings block per sequence; the detectors
+    # and laser lines in use are the ones recorded there.
+    scans = hardware.findall("./LDM_Block_Sequential/LDM_Block_Sequential_List/*") or [definition]
+    detectors, laser_lines, bands = [], [], []
+    for scan in scans:
+        ranges = {b.get("Channel"): (b.get("LeftWorld"), b.get("RightWorld"))
+                  for b in scan.findall("./Spectro/MultiBand")}
+        for detector in scan.findall("./DetectorList/Detector"):
+            if detector.get("IsActive") != "1":
+                continue
+            dye = _clean_dye(detector.get("DyeName") or "")
+            detectors.append((detector.get("Name") or "N/A", dye))
+            low, high = ranges.get(detector.get("Channel"), (None, None))
+            if low and high:
+                bands.append(f"{round(float(low))}-{round(float(high))}")
+        for line in scan.findall("./AotfList/Aotf/LaserLineSetting"):
+            # Every line the laser offers is listed; the ones in use have power.
+            if float(line.get("IntensityDev") or 0) > 0 and line.get("LaserLine") not in laser_lines:
+                laser_lines.append(line.get("LaserLine"))
+
+    return {
+        "software": hardware.get("Software"),
+        "system": hardware.get("SystemTypeName"),
+        "mode": hardware.get("DataSourceTypeName"),
+        "microscope": definition.get("MicroscopeModel"),
+        "scan mode": definition.get("ScanMode"),
+        "objective": definition.get("ObjectiveName"),
+        "na": definition.get("NumericalAperture"),
+        "magnification": definition.get("Magnification"),
+        "refractive index": definition.get("RefractionIndex"),
+        "immersion": definition.get("Immersion"),
+        "pinhole airy": definition.get("PinholeAiry"),
+        "pinhole m": definition.get("Pinhole"),
+        "zoom": definition.get("Zoom"),
+        "detectors": detectors,
+        "laser lines": laser_lines,
+        "bands": bands,
+    }
+
+
+def _las_af_settings(hardware_list):
+    """Read a LAS AF "HardwareSettingList" block."""
+    scanner = {r.get("Identifier"): r.get("Variant")
+               for r in hardware_list.findall(".//ScannerSettingRecord")}
+    filters = {(r.get("ClassName"), r.get("Attribute")): r.get("Variant")
+               for r in hardware_list.findall(".//FilterSettingRecord")}
+    detectors = [(r.get("ObjectName"), "")
+                 for r in hardware_list.findall(".//FilterSettingRecord")
+                 if r.get("ClassName") == "CDetectionUnit" and r.get("Attribute") == "State"
+                 and r.get("Variant") == "Active"]
+    return {
+        "system": scanner.get("SystemType"),
+        "scan mode": scanner.get("csScanMode"),
+        "objective": filters.get(("CTurret", "Objective")),
+        "na": filters.get(("CTurret", "NumericalAperture")),
+        "refractive index": filters.get(("CTurret", "RefractionIndex")),
+        "pinhole airy": scanner.get("dblPinholeAiry"),
+        "pinhole m": scanner.get("dblPinhole"),
+        "zoom": scanner.get("dblZoom"),
+        "detectors": detectors,
+    }
+
+
+def _channel_names(image, detectors):
+    """
+    Return one name per channel of the image: the dye if one was set, else
+    the detector, else the display colour (e.g. "Green").
+    """
+    channels = image.findall("./ImageDescription/Channels/ChannelDescription")
+    names = []
+    for index, channel in enumerate(channels):
+        properties = {p.findtext("Key"): p.findtext("Value") for p in channel.findall("ChannelProperty")}
+        dye = _clean_dye(properties.get("DyeName") or "")
+        detector = properties.get("DetectorName") or ""
+        # Older files do not label the channels, but the active detectors
+        # correspond to them when there are equally many of each.
+        if not (dye or detector) and len(detectors) == len(channels):
+            detector, dye = detectors[index]
+        names.append(dye or detector or channel.get("LUTName") or "N/A")
+    return names
+
+
+def _image_metadata(element):
+    """Build the metadata dict for one image element."""
+    image = element.find("./Data/Image")
+    attachments = {a.get("Name"): a for a in image.findall("Attachment")}
+    if "HardwareSetting" in attachments:
+        settings = _las_x_settings(attachments["HardwareSetting"])
+    elif "HardwareSettingList" in attachments:
+        settings = _las_af_settings(attachments["HardwareSettingList"])
+    else:
+        settings = {}
+
+    def setting(key):
+        value = settings.get(key)
+        return " ".join(value.split()) if value and value.strip() else "N/A"
+
+    # "IMM" marks a multi-immersion objective; the refractive index that was
+    # set says which medium was used.
+    medium = setting("immersion")
+    if medium in ("IMM", "N/A"):
+        medium = immersion_from_refractive_index(settings.get("refractive index")) or medium
+
+    dimensions = _dimensions(image)
+    metadata = {
+        "Image Name": element.get("Name") or "N/A",
+        "Document Creation Date": _creation_date(image),
+        "Application Version": setting("software"),
+        "System Name": setting("system"),
+        "Microscope Model": setting("microscope"),
+        "Acquisition Modes": imaging_mode_term(setting("mode")),
+        "Scan Mode": setting("scan mode"),
+        "Objective Model": setting("objective"),
+        "Objective NA": _number(settings.get("na")),
+        "Objective Magnification": _number(settings.get("magnification")),
+        "Objective Refractive Index": _number(settings.get("refractive index")),
+        "Objective Medium": immersion_term(medium),
+        "Channel Names": _channel_names(image, settings.get("detectors", [])),
+        "Detectors": [name for name, _ in settings.get("detectors", [])] or ["N/A"],
+        "Excitation Wavelengths (nm)": settings.get("laser lines") or ["N/A"],
+        "Emission Wavelength Range (nm)": settings.get("bands") or ["N/A"],
+        "Pinhole Size (Airy Units)": _number(settings.get("pinhole airy")),
+        "Pinhole Diameter (um)": _number(float(settings["pinhole m"]) * 1e6)
+                                 if settings.get("pinhole m") else "N/A",
+        "Zoom": _number(settings.get("zoom")),
+    }
+
+    for axis in "XYZT":
+        metadata[f"Size {axis}"] = dimensions[axis][0] if axis in dimensions else 1
+    metadata["Size C"] = len(metadata["Channel Names"])
+    for axis in "XYZ":
+        count, length = dimensions.get(axis, (1, 0))
+        # The length spans the first to the last pixel centre.
+        metadata[f"Pixel Size {axis} (um)"] = _number(length * 1e6 / (count - 1)) if count > 1 else "N/A"
+        metadata[f"Image Size {axis} (um)"] = _number(length * 1e6) if axis in dimensions else "N/A"
+    frames, duration = dimensions.get("T", (1, 0))
+    metadata["Time Interval (s)"] = _number(duration / (frames - 1)) if frames > 1 else "N/A"
+    return metadata
+
 
 def extract_lif_metadata(lif_path):
-    """Extracts metadata from a Leica LIF file and returns a summary dictionary."""
-    lif_file = LifFile(lif_path)
-    metadata_list = []
-    xml_header = lif_file.xml_header
+    """
+    Extract metadata from a Leica LIF file.
 
-    for idx, image in enumerate(lif_file.get_iter_image()):
-        info = image.info
-        meta = extract_leica_metadata(info, xml_header)
-        meta["Image Index"] = idx + 1
-        meta["Image Name"] = info.get('name', 'Unnamed')
-        meta["Dimensions"] = str(info.get("dims", "N/A"))
-        meta["Number of channels"] = info.get("channels", "N/A")
-        meta["Voxel size (scale)"] = str(info.get("scale", "N/A"))
-        settings = info.get("settings", {})
-        meta["Objective"] = settings.get("ObjectiveName", "N/A")
-        meta["Magnification"] = settings.get("Magnification", "N/A")
-        meta["Numerical Aperture"] = settings.get("NumericalAperture", "N/A")
-        meta["Immersion"] = settings.get("Immersion", "N/A")
-        metadata_list.append(meta)
+    Args:
+        lif_path (str): path to the .lif file.
 
-    # Optionally, add global header info
-    header = xml_header
-    matches = re.findall(r'(AcquisitionDate|CreationDate)[^>]*>([^<]+)', header)
-    if matches:
-        for tag, date in matches:
-            metadata_list[0][f"Header_{tag}"] = date
+    Returns:
+        list[dict]: one metadata dict per image, in the order the images
+        appear in the LAS X project tree. Each dict has the same keys; a
+        value the image does not record is "N/A", or ["N/A"] for the
+        per-channel lists.
 
-    # Timestamps
-    root_xml = ET.fromstring(xml_header)
-    timestamps = []
-    for elem in root_xml.iter():
-        if 'timestamp' in elem.attrib:
-            timestamps.append(elem.attrib['timestamp'])
-        if elem.tag.lower().endswith('timestamp') and elem.text:
-            timestamps.append(elem.text)
-    if timestamps:
-        metadata_list[0]["Timestamps"] = timestamps
+    Raises:
+        ValueError: if the file contains no images.
+        Exception: whatever readlif raises for a file it cannot read.
+    """
+    per_image = [_image_metadata(element) for element in _image_elements(LifFile(lif_path).xml_root)]
+    if not per_image:
+        raise ValueError("No images found in LIF file.")
+    return per_image
 
-    # DataSourceTypeName and System Type Name
-    ds_type = re.findall(r'DataSourceTypeName="([^"]+)"', header)
-    sys_type = re.findall(r'System Type Name="([^"]+)"', header)
-    if ds_type:
-        metadata_list[0]["DataSourceTypeName"] = ds_type[0]
-    if sys_type:
-        metadata_list[0]["System Type Name"] = sys_type[0]
-
-    return metadata_list
-
-def extract_leica_metadata(info, xml_header):
-    import xml.etree.ElementTree as ET
-
-    root = ET.fromstring(xml_header)
-    settings = info.get("settings", {})
-    dims = info.get("dims", None)
-    scale = info.get("scale", (None, None, None))
-    channels = info.get("channels", "N/A")
-
-    def find_tag(name):
-        for elem in root.iter():
-            if elem.tag.lower().endswith(name.lower()):
-                return elem.text
-        return "N/A"
-
-    def find_attr(attr):
-        for elem in root.iter():
-            if attr in elem.attrib:
-                return elem.attrib[attr]
-        return "N/A"
-
-    app_name = app_version = "N/A"
-    for att in root.findall(".//Attachment"):
-        if "Software" in att.attrib:
-            app_version = att.attrib["Software"]
-        if "Application" in att.attrib:
-            app_name = att.attrib["Application"]
-
-    # Unique channel names
-    channel_names = []
-    seen_channels = set()
-    for ch in root.findall(".//ChannelDescription"):
-        name = ch.attrib.get("LUTName") or ch.attrib.get("ChannelName") or ch.attrib.get("NameOfMeasuredQuantity") or "N/A"
-        if name not in seen_channels:
-            channel_names.append(name)
-            seen_channels.add(name)
-
-    dye_names = []
-    excitation_wavelengths = []
-    emission_wavelengths = []
-    emission_wavelength_ranges = []
-    pinhole_sizes = []
-    pinhole_diameters = []
-    airy_virtual_pinhole = []
-    zooms = []
-
-    for ch in root.findall(".//ChannelDescription"):
-        name = ch.attrib.get("LUTName") or ch.attrib.get("ChannelName") or ch.attrib.get("NameOfMeasuredQuantity") or "N/A"
-        channel_names.append(name)
-        if "PinholeAiry" in ch.attrib:
-            pinhole_sizes.append(ch.attrib["PinholeAiry"])
-        if "Pinhole" in ch.attrib:
-            pinhole_diameters.append(ch.attrib["Pinhole"])
-
-    for mb in root.findall(".//MultiBand"):
-        dye_names.append(mb.attrib.get("DyeName", "N/A"))
-        excitation_wavelengths.append(mb.attrib.get("TargetWaveLengthBegin", "N/A"))
-        emission_wavelengths.append(mb.attrib.get("TargetWaveLengthEnd", "N/A"))
-        emission_wavelength_ranges.append(f"{mb.attrib.get('LeftWorld', 'N/A')}-{mb.attrib.get('RightWorld', 'N/A')}")
-
-    for atl in root.findall(".//ATLConfocalSettingDefinition"):
-        if "PinholeAiry" in atl.attrib:
-            pinhole_sizes.append(atl.attrib["PinholeAiry"])
-        if "Pinhole" in atl.attrib:
-            pinhole_diameters.append(atl.attrib["Pinhole"])
-        if "Zoom" in atl.attrib:
-            zooms.append(atl.attrib["Zoom"])
-        if "AiryScanVirtualPinholeSize" in atl.attrib:
-            airy_virtual_pinhole.append(atl.attrib["AiryScanVirtualPinholeSize"])
-
-    active_ex_waves = []
-    active_em_waves = []
-    for lls in root.findall(".//LaserLineSetting"):
-        if lls.attrib.get("IsLineChecked", "0") == "1":
-            if "LaserLine" in lls.attrib:
-                active_ex_waves.append(lls.attrib["LaserLine"])
-    for det in root.findall(".//Detector"):
-        if det.attrib.get("IsActive", "0") == "1":
-            if "ChannelName" in det.attrib:
-                active_em_waves.append(det.attrib.get("ChannelName"))
-
-    meta = {
-        "Document Name": info.get("name", find_tag("Name")),
-        "Document User Name": find_attr("UserName"),
-        "Document Creation Date": find_attr("CreationDate") or find_tag("CreationDate"),
-        "Application Name": app_name,
-        "Application Version": app_version,
-        "System Name": find_attr("SystemTypeName"),
-        "Pixel Type": find_attr("PixelType"),
-        "Size X": dims.x if dims else "N/A",
-        "Size Y": dims.y if dims else "N/A",
-        "Size Z": dims.z if dims else "N/A",
-        "Size M": dims.m if dims and hasattr(dims, "m") else "N/A",
-        "Size T": dims.t if dims and hasattr(dims, "t") else "N/A",
-        "Size C": channels,
-        "Size S": "N/A",
-        "Pixel Size X (um)": scale[0] if scale and len(scale) > 0 else "N/A",
-        "Pixel Size Y (um)": scale[1] if scale and len(scale) > 1 else "N/A",
-        "Pixel Size Z (um)": scale[2] if scale and len(scale) > 2 else "N/A",
-        "Image Size X (um)": float(scale[0])*dims.x if scale and dims and scale[0] else "N/A",
-        "Image Size Y (um)": float(scale[1])*dims.y if scale and dims and scale[1] else "N/A",
-        "Image Size Z (um)": float(scale[2])*dims.z if scale and dims and scale[2] else "N/A",
-        "Time Interval (s)": find_attr("TimeInterval"),
-        "Objective Model": settings.get("ObjectiveName", find_attr("ObjectiveName")),
-        "Objective NA": settings.get("NumericalAperture", find_attr("NumericalAperture")),
-        "Objective Magnification": settings.get("Magnification", find_attr("Magnification")),
-        "Objective Refractive Index": settings.get("RefractionIndex", find_attr("RefractionIndex")),
-        "Objective Medium": settings.get("Immersion", find_attr("Immersion")),
-        "Illumination_Types": find_attr("IlluminationType"),
-        "Contrast Methods": find_attr("ContrastMethod"),
-        "Acquisition Modes": find_attr("AcquisitionMode"),
-        "Channel Names": ", ".join(channel_names) if channel_names else "N/A",
-        "Dye Names": ", ".join(dye_names) if dye_names else "N/A",
-        "Excitation Wavelengths (active)": ", ".join(active_ex_waves) if active_ex_waves else "N/A",
-        "Emission Channels (active)": ", ".join(active_em_waves) if active_em_waves else "N/A",
-        "Excitation Wavelengths (all)": ", ".join(excitation_wavelengths) if excitation_wavelengths else "N/A",
-        "Emission Wavelengths (all)": ", ".join(emission_wavelengths) if emission_wavelengths else "N/A",
-        "Emission Wavelength Range (nm)": ", ".join(emission_wavelength_ranges) if emission_wavelength_ranges else "N/A",
-        "Pinhole Sizes (Airy Units)": ", ".join(pinhole_sizes) if pinhole_sizes else "N/A",
-        "Pinhole Diameters (um)": ", ".join(pinhole_diameters) if pinhole_diameters else "N/A",
-        "AiryScan Virtual Pinhole Size (um)": ", ".join(airy_virtual_pinhole) if airy_virtual_pinhole else "N/A",
-        "Zoom": ", ".join(zooms) if zooms else "N/A",
-        "MM.TotalMagnification (per channel)": find_attr("TotalMagnification"),
-    }
-    return meta
 
 # Optional: CLI usage for testing
 if __name__ == "__main__":
-    import sys
     import json
+    import sys
+
     if len(sys.argv) < 2:
         print("Usage: python LIF_MetadataGUI.py <file.lif>")
     else:
-        lif_path = sys.argv[1]
-        metadata = extract_lif_metadata(lif_path)
-        print(json.dumps(metadata, indent=2))
+        print(json.dumps(extract_lif_metadata(sys.argv[1]), indent=2))

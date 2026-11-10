@@ -34,11 +34,11 @@ if current_dir not in sys.path:
 try:
     from metadata_extractors.CZI_MetadataGUI import extract_metadata
     from metadata_extractors.LIF_MetadataGUI import extract_lif_metadata
-    from metadata_extractors.Nd2_v2a import extract_nd2_metadata, map_nd2_to_remind_fields
+    from metadata_extractors.Nd2_v2a import extract_nd2_metadata
     from metadata_extractors.OIR_MetadataGUI import extract_oir_metadata
     from metadata_extractors.OMETiff_MetadataGUI import extract_ometiff_metadata
-    from metadata_extractors._common import most_common_metadata
-    from metadata_extractors.field_mapping import metadata_to_form_fields
+    from metadata_extractors._common import combine_image_metadata
+    from metadata_extractors.field_mapping import metadata_to_form_fields, merge_form_fields
     from readme_io import MULTILINE_FIELDS, format_readme, parse_readme
 except ImportError as e:
     print(f"Import error: {e}")
@@ -87,25 +87,15 @@ SECTION_HEADINGS = {
 }
 
 
-def _read_lif(path):
-    """Return one metadata dict for a LIF file, which can hold many images."""
-    per_image = extract_lif_metadata(path)
-    if not per_image:
-        raise ValueError("No images found in LIF file.")
-    # The first image is often an overview, so use the most common value of
-    # each item rather than the first.
-    return most_common_metadata(per_image)
-
-
-# File extension -> (format name, function returning the metadata dict for a
-# file, function turning that dict into form field values).
+# File extension -> (format name, function returning one metadata dict per
+# image in a file).
 IMAGE_READERS = {
-    ".czi":  ("CZI", extract_metadata, metadata_to_form_fields),
-    ".lif":  ("LIF", _read_lif, metadata_to_form_fields),
-    ".nd2":  ("ND2", extract_nd2_metadata, map_nd2_to_remind_fields),
-    ".oir":  ("OIR", extract_oir_metadata, metadata_to_form_fields),
-    ".tif":  ("OME-TIFF", extract_ometiff_metadata, metadata_to_form_fields),
-    ".tiff": ("OME-TIFF", extract_ometiff_metadata, metadata_to_form_fields),
+    ".czi":  ("CZI", lambda path: [extract_metadata(path)]),
+    ".lif":  ("LIF", extract_lif_metadata),
+    ".nd2":  ("ND2", lambda path: [extract_nd2_metadata(path)]),
+    ".oir":  ("OIR", lambda path: [extract_oir_metadata(path)]),
+    ".tif":  ("OME-TIFF", extract_ometiff_metadata),
+    ".tiff": ("OME-TIFF", extract_ometiff_metadata),
 }
 
 
@@ -629,6 +619,10 @@ class REMBIGUI:
         """
         Fill the form from an image file's metadata and show the metadata.
 
+        A file can hold several images taken with different settings. Fields
+        on which they differ list each distinct value (see merge_form_fields
+        and combine_image_metadata).
+
         Only fields the file has a value for are changed. The microscope name
         is also left alone when the template supplied one, because the
         facility's own name for the instrument is more useful than the model
@@ -641,10 +635,11 @@ class REMBIGUI:
             messagebox.showinfo("Not Supported", "Only CZI, LIF, ND2, OIR and OME-TIFF files are supported for metadata extraction at this time.")
             return
 
-        format_name, read_metadata, to_form_fields = IMAGE_READERS[ext]
+        format_name, read_metadata = IMAGE_READERS[ext]
         try:
-            metadata = read_metadata(path)
-            form_values = to_form_fields(metadata)
+            per_image = read_metadata(path)
+            form_values = merge_form_fields([metadata_to_form_fields(image) for image in per_image])
+            metadata = combine_image_metadata(per_image)
         except Exception as e:
             messagebox.showerror("Error", f"Failed to extract {format_name} metadata:\n{e}")
             return
@@ -656,8 +651,9 @@ class REMBIGUI:
         self.set_field("Image format", ext)
         self.show_metadata_in_window(metadata)
         self.status_label.configure(
-            text=f"Filled {len(form_values) + 1} fields from {os.path.basename(path)}. "
-                 f"Its {len(metadata)} metadata items are listed at the bottom of the form.")
+            text=f"Filled {len(form_values) + 1} fields from {os.path.basename(path)}"
+                 f"{f' ({len(per_image)} images)' if len(per_image) > 1 else ''}. "
+                 "Its metadata is listed at the bottom of the form.")
 
     def show_metadata_in_window(self, metadata_dict):
         """Make metadata_dict the extracted image metadata: it is shown in

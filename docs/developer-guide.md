@@ -13,7 +13,7 @@ remind/
 │   │   ├── OIR_MetadataGUI.py      # Olympus/Evident OIR metadata extraction
 │   │   ├── OMETiff_MetadataGUI.py  # OME-TIFF metadata extraction
 │   │   ├── field_mapping.py        # Turns extracted metadata into form field values
-│   │   └── _common.py              # Shared helpers (most_common_metadata, term lookup)
+│   │   └── _common.py              # Shared helpers (combining images, term lookup)
 ├── tests/                         # Automated tests
 ├── tools/                         # Developer utilities (e.g. inspect_oir.py)
 ├── docs/                          # Documentation
@@ -59,7 +59,7 @@ python src/remind.py
 - **OIR_MetadataGUI.py** - Handles Olympus/Evident OIR files using `oirfile` library
 - **OMETiff_MetadataGUI.py** - Handles OME-TIFF files using `ome-types` library
 - **field_mapping.py** - `metadata_to_form_fields()` turns an extractor's output into form field values
-- **_common.py** - Shared helpers: `most_common_metadata()` for collapsing multi-image container formats, and `immersion_term()` / `imaging_mode_term()` for translating file values into the form's terms
+- **_common.py** - Shared helpers: `combine_image_metadata()` for files that hold several images, and `immersion_term()` / `imaging_mode_term()` for translating file values into the form's terms
 
 #### readme_io.py
 - **Purpose**: The ReadMe.txt file format, with no GUI code
@@ -83,21 +83,27 @@ canvas, which `toggle_dark_mode()` colours to match.
 
 #### Metadata Extraction Pipeline
 Each supported file extension has one entry in `IMAGE_READERS` in `remind.py`:
-the format name, a function that returns the metadata dict for a file, and a
-function that turns that dict into form field values.
+the format name and a function that returns one metadata dict per image in
+the file.
 
 ```python
 IMAGE_READERS = {
-    ".czi": ("CZI", extract_metadata, metadata_to_form_fields),
-    ".lif": ("LIF", _read_lif, metadata_to_form_fields),
-    ".nd2": ("ND2", extract_nd2_metadata, map_nd2_to_remind_fields),
+    ".czi": ("CZI", lambda path: [extract_metadata(path)]),
+    ".lif": ("LIF", extract_lif_metadata),
     ...
 }
 ```
 
-`load_image_file()` looks up the extension, calls the two functions, writes
-the returned values into the form, and shows the metadata dict in the
-metadata panel. The same dict is written to the ReadMe.txt and JSON exports.
+`load_image_file()` looks up the extension and reads the file. It then:
+1. turns each image's metadata into form field values with
+   `metadata_to_form_fields()`, and merges them with `merge_form_fields()`;
+2. combines the per-image metadata with `combine_image_metadata()` and shows
+   the result in the metadata panel. The same dict is written to the
+   ReadMe.txt and JSON exports.
+
+A LIF project or multi-image OME-TIFF can hold images taken with different
+settings. Where the images differ, both functions list every distinct value
+rather than picking one, e.g. `63x/1.40 OIL [14 images]; 10x/0.40 DRY [Overview]`.
 
 The extractors share a vocabulary of metadata keys. `metadata_to_form_fields()`
 reads these keys:
@@ -108,8 +114,8 @@ reads these keys:
 | `System Name` | Microscope name |
 | `Objective Model` | Objective |
 | `Objective Medium` | Immersion |
-| `Acquisition Modes` | Imaging mode, or Specialist modality for STED/TIRF/FLIM |
-| `Channel Names` | Channel info |
+| `Acquisition Modes` | Imaging mode, or Specialist modality for STED/TIRF/FLIM/SoRa |
+| `Channel Names`, `Dye Names` | Channel info |
 | `Size Z` | Z-stack (Yes/No) |
 | `Size T` | Time series (Yes/No) |
 
@@ -128,6 +134,10 @@ def extract_new_metadata(file_path):
     """Extract metadata from NEW format files."""
     return {"System Name": ..., "Objective Model": ..., "Size Z": ...}
 ```
+For a format that can hold several images, return a list with one such dict
+per image, each with an `"Image Name"`.
+```python
+```
 
 2. **Add it to `IMAGE_READERS`** in `remind.py`:
 ```python
@@ -135,7 +145,7 @@ from metadata_extractors.NEW_MetadataGUI import extract_new_metadata
 
 IMAGE_READERS = {
     # ... existing formats ...
-    ".new": ("NEW", extract_new_metadata, metadata_to_form_fields),
+    ".new": ("NEW", lambda path: [extract_new_metadata(path)]),
 }
 ```
 
@@ -252,7 +262,8 @@ python -m unittest discover -s tests
 ```
 
 - `tests/test_readme_io.py` - the ReadMe.txt format, including a file written by v3.0.0
-- `tests/test_field_mapping.py` - which form fields are filled from image metadata
+- `tests/test_field_mapping.py` - which form fields are filled from image metadata, and how several images are combined
+- `tests/test_lif.py` - each image in a LIF file reports its own settings
 - `tests/test_form.py` - form behaviour (Clear Form, templates, loading files).
   These open the real window and are skipped where no display is available
 
@@ -320,7 +331,7 @@ Extract metadata from CZI files.
 #### extract_lif_metadata(file_path)
 Extract metadata from LIF files.
 - **Parameters**: `file_path` (str) - Path to LIF file  
-- **Returns**: List of metadata dictionaries (one per series)
+- **Returns**: List of metadata dictionaries, one per image, each read from that image's own settings
 - **Raises**: Exception if extraction fails
 
 #### extract_nd2_metadata(file_path)
@@ -338,20 +349,20 @@ Extract metadata from Olympus/Evident OIR files.
 #### extract_ometiff_metadata(file_path)
 Extract metadata from OME-TIFF files (reads embedded OME-XML via `ome-types`).
 - **Parameters**: `file_path` (str) - Path to .tif/.tiff file
-- **Returns**: Metadata dictionary; for multi-image files it holds the per-field most common value across images
+- **Returns**: List of metadata dictionaries, one per image
 - **Raises**: Exception if the file contains no parseable OME-XML
 
 ### Utility Functions
 
-#### map_nd2_to_remind_fields(metadata_dict)
-Map ND2 metadata to ReMInD form fields.
-- **Parameters**: `metadata_dict` (dict) - Raw ND2 metadata
-- **Returns**: Dictionary mapping ReMInD field names to values
+#### combine_image_metadata(per_image)
+Describe all the images of one file in a single metadata dict. A value shared by every image is kept as it is; otherwise each distinct value is listed with the images it applies to.
+- **Parameters**: `per_image` (list[dict]) - one metadata dict per image
+- **Returns**: A single metadata dictionary
 
-#### most_common_metadata(dicts)
-Collapse a list of per-image metadata dicts into one, taking the most common value per key (ties favour the earliest/first image). Used for container formats (LIF, multi-image OME-TIFF).
-- **Parameters**: `dicts` (list[dict]) - one metadata dict per image/series
-- **Returns**: A single representative metadata dictionary
+#### merge_form_fields(per_image)
+Combine the form field values of several images. Differing values are joined with "; ", except that the earliest date is used and Yes/No becomes "Both".
+- **Parameters**: `per_image` (list[dict]) - `metadata_to_form_fields()` output for each image
+- **Returns**: Dictionary mapping form field labels to values
 
 ## Release Process
 
