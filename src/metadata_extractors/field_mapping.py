@@ -74,9 +74,7 @@ def _more_than_one(count):
     try:
         return "Yes" if int(float(count)) > 1 else "No"
     except (TypeError, ValueError):
-        # Formats such as CZI and OIR leave a dimension out when it has a
-        # single plane or time point, so the extractors report it as "N/A".
-        return "No"
+        return "No"  # a size that is not a number, such as "N/A"
 
 
 def metadata_to_form_fields(metadata):

@@ -186,7 +186,7 @@ def imaging_mode_term(raw):
     Returns:
         The form's term when the mode is recognised: an "Imaging mode"
         option (e.g. "Confocal", "Widefield") or a "Specialist modality"
-        option ("STED", "TIRF", "FLIM"). Any other value, including "N/A" and "", is returned
-        unchanged.
+        option ("STED", "TIRF", "FLIM"). Any other value, including "N/A"
+        and "", is returned unchanged.
     """
     return _IMAGING_MODE_TERMS.get(_lookup_key(raw), raw)

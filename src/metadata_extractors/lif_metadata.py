@@ -269,7 +269,6 @@ def extract_lif_metadata(lif_path):
     return per_image
 
 
-# Optional: CLI usage for testing
 if __name__ == "__main__":
     import json
     import sys

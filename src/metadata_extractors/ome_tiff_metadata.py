@@ -147,7 +147,6 @@ def extract_ometiff_metadata(file_path):
     return [{**_image_metadata(root, image), "File Name": file_name} for image in images]
 
 
-# CLI usage for testing
 if __name__ == "__main__":
     import json
     import sys
