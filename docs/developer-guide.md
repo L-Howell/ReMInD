@@ -18,6 +18,7 @@ remind/
 │   │   ├── field_mapping.py        # Turns extracted metadata into form field values
 │   │   └── _common.py              # Shared helpers (combining images, term lookup)
 ├── tests/                         # Automated tests
+├── assets/                        # Drawings the icon is made from
 ├── tools/                         # Developer utilities (e.g. inspect_oir.py)
 ├── docs/                          # Documentation
 └── templates/                     # Example templates
@@ -198,6 +199,14 @@ The field is saved, loaded and exported with no further code.
 ```python
 ("New Dropdown", ["Option1", "Option2", "Option3"], "Help text"),
 ```
+
+## Icon
+
+`ReMInD.ico` is made from two drawings in `assets/`: `icon.svg` is used for
+48 pixels and larger, and `icon-small.svg`, which leaves out the fine detail
+and has a heavier border, for 40 pixels and smaller. To change the icon, edit
+the drawings, export each at its sizes (16, 20, 24, 32, 40 from the small one;
+48, 64, 128, 256 from the full one) and combine them into the `.ico`.
 
 ## Building Executables
 
