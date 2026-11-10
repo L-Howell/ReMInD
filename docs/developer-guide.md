@@ -18,7 +18,7 @@ remind/
 │   │   ├── field_mapping.py        # Turns extracted metadata into form field values
 │   │   └── _common.py              # Shared helpers (combining images, term lookup)
 ├── tests/                         # Automated tests
-├── assets/                        # Drawings the icon is made from
+├── assets/                        # Source drawings of the icon
 ├── tools/                         # Developer utilities (e.g. inspect_oir.py)
 ├── docs/                          # Documentation
 └── templates/                     # Example templates
@@ -200,14 +200,6 @@ The field is saved, loaded and exported with no further code.
 ("New Dropdown", ["Option1", "Option2", "Option3"], "Help text"),
 ```
 
-## Icon
-
-`ReMInD.ico` is made from two drawings in `assets/`: `icon.svg` is used for
-48 pixels and larger, and `icon-small.svg`, which leaves out the fine detail
-and has a heavier border, for 40 pixels and smaller. To change the icon, edit
-the drawings, export each at its sizes (16, 20, 24, 32, 40 from the small one;
-48, 64, 128, 256 from the full one) and combine them into the `.ico`.
-
 ## Building Executables
 
 Run `build_scripts/build.bat` from the `build_scripts` folder; the executable
@@ -281,8 +273,8 @@ When reporting bugs, include:
    effort a user needs to move to the new version).
    It is the only place the version is written; the window title, the ReadMe
    header and the Help text read it from there
-2. **Checks**: Push and wait for the CI run to pass (tests, build, and the
-   check that the built executable starts)
+2. **Checks**: Open a pull request and wait for the CI run to pass (tests,
+   build, and the check that the built executable starts)
 3. **Manual testing**: Run the manual test checklist on the executable from
    the CI run's artifacts
 4. **Merge** to `main`
@@ -298,14 +290,16 @@ When reporting bugs, include:
 6. **Announcement**: Notify users of new version
 
 ### Continuous integration
-`.github/workflows/ci.yml` runs on every push, on Windows. It installs the
+`.github/workflows/ci.yml` runs on every pull request, on Windows, and again
+whenever the pull request is updated. It can also be started by hand from the
+Actions tab. It installs the
 pinned requirements, runs the tests, runs `build_scripts/build.bat`, and then
 runs `ReMInD.exe --check check.log`. `--check` imports the library of every
 file format and builds the window, then exits with code 1 if anything failed
 and writes the reasons to the log file. A windowed program has no console, so
 without this a library missing from the build would only show up as a window
-that never opens. When the push is a version tag (`v...`), a final step
-publishes the release.
+that never opens. Pushing a version tag (`v...`) runs it too, with a final
+step that publishes the release.
 
 ### Pinned versions
 `requirements.txt` gives exact versions so that rebuilding later produces

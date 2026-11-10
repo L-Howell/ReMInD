@@ -1,1 +1,12 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><rect x="7.0" y="7.0" width="242" height="242" rx="49.0" fill="#1b1916" stroke="#6b655c" stroke-width="14"/><g transform="rotate(-22 128 128)"><rect x="28" y="76" width="200" height="104" rx="18" fill="#322e28" stroke="#fbf8f3" stroke-width="20"/><path d="M44.0 86.0 H116.0 V170.0 H44.0 a6 6 0 0 1 -6 -6 V92.0 a6 6 0 0 1 6 -6 Z" fill="#f2b24a"/><ellipse cx="172.0" cy="128.0" rx="27.04" ry="19.76" transform="rotate(-25 172.0 128.0)" fill="#fbf8f3"/></g></svg>
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- ReMInD icon, simplified drawing. Used for the 16, 20, 24, 32 and 40 pixel sizes in ReMInD.ico:
+     no writing on the label, heavier outlines, and a border that stays about a pixel wide at 16 pixels. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <title>ReMInD icon, small sizes</title>
+  <rect id="tile" x="7" y="7" width="242" height="242" rx="49" fill="#1b1916" stroke="#6b655c" stroke-width="14"/>
+  <g id="slide" transform="rotate(-22 128 128)">
+    <rect id="glass" x="28" y="76" width="200" height="104" rx="18" fill="#322e28" stroke="#fbf8f3" stroke-width="20"/>
+    <path id="label" d="M44 86 H116 V170 H44 a6 6 0 0 1 -6 -6 V92 a6 6 0 0 1 6 -6 Z" fill="#f2b24a"/>
+    <ellipse id="specimen" cx="172" cy="128" rx="27.04" ry="19.76" transform="rotate(-25 172 128)" fill="#fbf8f3"/>
+  </g>
+</svg>

@@ -1,1 +1,18 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><rect x="2.5" y="2.5" width="251" height="251" rx="53.5" fill="#1b1916" stroke="#6b655c" stroke-width="5"/><g transform="rotate(-22 128 128)"><rect x="28" y="84" width="200" height="88" rx="14" fill="#322e28" stroke="#fbf8f3" stroke-width="12"/><path d="M40.0 90.0 H102.0 V166.0 H40.0 a6 6 0 0 1 -6 -6 V96.0 a6 6 0 0 1 6 -6 Z" fill="#f2b24a"/><rect x="46.0" y="111.0" width="44" height="10" rx="5.0" fill="#1b1916"/><rect x="46.0" y="133.0" width="30" height="10" rx="5.0" fill="#1b1916"/><ellipse cx="159.0" cy="130.0" rx="20" ry="15" transform="rotate(-25 159.0 130.0)" fill="#fbf8f3"/><ellipse cx="175.0" cy="122.0" rx="14" ry="12" fill="#fbf8f3"/></g></svg>
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- ReMInD icon, full drawing. Used for the 48, 64, 128 and 256 pixel sizes in ReMInD.ico. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <title>ReMInD icon</title>
+  <rect id="tile" x="2.5" y="2.5" width="251" height="251" rx="53.5" fill="#1b1916" stroke="#6b655c" stroke-width="5"/>
+  <g id="slide" transform="rotate(-22 128 128)">
+    <rect id="glass" x="28" y="84" width="200" height="88" rx="14" fill="#322e28" stroke="#fbf8f3" stroke-width="12"/>
+    <path id="label" d="M40 90 H102 V166 H40 a6 6 0 0 1 -6 -6 V96 a6 6 0 0 1 6 -6 Z" fill="#f2b24a"/>
+    <g id="writing" fill="#1b1916">
+      <rect x="46" y="111" width="44" height="10" rx="5"/>
+      <rect x="46" y="133" width="30" height="10" rx="5"/>
+    </g>
+    <g id="specimen" fill="#fbf8f3">
+      <ellipse cx="159" cy="130" rx="20" ry="15" transform="rotate(-25 159 130)"/>
+      <ellipse cx="175" cy="122" rx="14" ry="12"/>
+    </g>
+  </g>
+</svg>

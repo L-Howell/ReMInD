@@ -1,7 +1,9 @@
 name: CI
 
 on:
+  pull_request:
   push:
+    tags: ["v*"]  # a version tag publishes a release (last step)
   workflow_dispatch:
 
 jobs:

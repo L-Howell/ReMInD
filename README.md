@@ -1,105 +1,128 @@
+<div align="center">
+
 # ReMInD
-# 🧬 Recommended Metadata Interface for Documentation
 
-**Version**: see [`src/version.py`](src/version.py) or the [releases](https://github.com/L-Howell/ReMInD/releases)  
-**Maintainer**: Liam Howell, Sydney Microscopy and Microanalysis, The University of Sydney  
-**Original author**: Dr Nicholas Condon (n.condon@uq.edu.au), Institute for Molecular Bioscience (IMB) Microscopy Facility, The University of Queensland  
-**License**: GNU GPL v3.0
+**Recommended Metadata Interface for Documentation**
 
----
+A small Windows program that promotes FAIR data management practices in microscopy<br>
+by making it easy to record metadata at the point of acquisition.
 
-## 📖 Overview
+[![CI](https://github.com/L-Howell/ReMInD/actions/workflows/ci.yml/badge.svg)](https://github.com/L-Howell/ReMInD/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/L-Howell/ReMInD)](https://github.com/L-Howell/ReMInD/releases/latest)
+[![Licence: GPL v3](https://img.shields.io/badge/licence-GPL%20v3-blue)](LICENSE)
+![Windows 10 and 11](https://img.shields.io/badge/Windows-10%20%7C%2011-0078D4)
 
-ReMInD assists researchers in capturing and organizing essential metadata for imaging experiments. It generates structured `ReadME.txt` files and JSON exports that can be stored alongside raw data to support good research data management (RDM) practices and future reuse.
+[Download](https://github.com/L-Howell/ReMInD/releases/latest) ·
+[User guide](docs/user-guide.md) ·
+[Troubleshooting](docs/troubleshooting.md) ·
+[Developer guide](docs/developer-guide.md)
 
-The tool is especially useful for users of light microscopy and other imaging systems, helping to ensure that contextual information is not lost after acquisition. It features automatic metadata extraction from microscopy file formats to streamline the documentation process.
+</div>
 
-> **Project history:** ReMInD 3.0 is a single, unified application that continues from the
-> earlier "ReMInD Lite" line. It originated as [ReMInD by Nicholas Condon](https://github.com/NickCondon/Remind)
-> and is now developed and maintained independently by Liam Howell under the GPL v3.0.
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/remind-dark.png">
+  <img src="docs/images/remind-light.png" alt="The ReMInD window after loading an image file">
+</picture>
 
----
+## What it does
 
-## 🚀 Features
+Image files record how they were acquired, but not what the sample was or why it was
+imaged. ReMInD is a single form that makes it easy to record everything: sample, labels,
+fixation, storage location, notes. Load one of your image files and it fills in what the
+file already contains, such as the objective, the channels and the acquisition date.
 
-### Core Functionality
-- **GUI-based metadata form** with tooltips for each field  
-- **Controlled vocabulary dropdowns** (e.g. microscope type, immersion media)  
-- **Timestamp insertion** in Notes field
-- **Filename Key table** - map a keyword in your file names to the biological group/treatment it identifies (add as many rows as needed)
-- **Template system** for pre-filling common fields
-- **Load existing ReadME.txt** files to edit and update metadata
-- **Export to multiple formats**: human-readable `ReadME.txt` and structured JSON
+The result is a plain-text file that anyone can read without needing ReMInD:
 
-### Image Metadata Extraction
-- **Automatic metadata extraction** from microscopy files:
-  - **CZI files** (Zeiss) - acquisition settings, microscope info, channels
-  - **LIF files** (Leica) - system details, imaging parameters
-  - **ND2 files** (Nikon) - experimental setup, time series, Z-stacks
-  - **OIR files** (Olympus/Evident) - acquisition settings, channels, objectives
-  - **OME-TIFF files** - reads embedded OME-XML (objective, channels, pixel sizes)
-- **Smart field mapping** - automatically populates relevant form fields
-- **Multi-image files** - every image in a LIF project or multi-series OME-TIFF is read; settings that differ between images are all listed
-- **Raw metadata display** - view complete extracted metadata
-- **Round-trip compatibility** - reload metadata when opening saved ReadME files
+```text
+Experiment name: Brain section tiling, cohort 3
+Storage Location: \\fileserver\facility\FV4000\
+Date and time: 2024-09-04 08:50:44
+Sample Information: Mouse brain, 40 um coronal section
+Microscope name: FV4000 Room 2.14
+Objective: UPLXAPO60X 60x NA 1.42
+Immersion: Oil
+Channel info: 405 (DAPI), 561 (Alexa Fluor 568)
+Z-stack: Yes
 
-### Adaptive Interface
-- **Two-column layout** - most of the form fits on one screen; a narrow window stacks it in one column
-- **Fixed toolbar** - the action buttons stay visible while the form scrolls
-- **Examples in empty fields** and highlighting of the fields filled from an image file
-- **Dark/light mode toggle** with Windows title bar theming
+# Filename Key
+ctrl -> Vehicle control
+B -> 10 uM Drug Y
+```
 
----
+The same content can be exported as JSON for other software.
 
-## 🖥️ Requirements*
+## Getting it
 
-- **Python** 3.12+
-- **Tkinter** (included with most Python installations)
-- **Additional libraries** for metadata extraction:
-  - `pylibCZIrw` - for Zeiss CZI files [link](https://github.com/ZEISS/pylibczirw)
-  - `readlif` - for Leica LIF files [link](https://github.com/Arcadia-Science/readlif)
-  - `nd2` - for Nikon ND2 files [link](https://github.com/tlambert03/nd2)
-  - `oirfile` - for Olympus/Evident OIR files [link](https://github.com/cgohlke/oirfile)
-  - `ome-types` - for OME-TIFF files [link](https://github.com/tlambert03/ome-types)
+Download `ReMInD.exe` from the [latest release](https://github.com/L-Howell/ReMInD/releases/latest)
+and run it. Installation is not required. It runs on Windows 10 and 11.
 
-*Only needed for editing and testing the Python code
+## Using it
 
----
+1. Click <kbd>Load Fields from Image File</kbd> and choose one of your image files.
+   The fields it fills in are highlighted so you can check them.
+2. Fill in the rest. Empty fields show an example of what to enter.
+3. Click <kbd>Generate ReadMe.txt</kbd> and save it in the same folder as your image data.
 
-## ▶️ Running from Source
+To update a record later, open it with <kbd>Load ReadMe.txt</kbd>. The
+[user guide](docs/user-guide.md) covers the Filename Key, templates and JSON export.
+
+## Supported image files
+
+| Format | Microscopes | Read with |
+|---|---|---|
+| `.czi` | Zeiss | [pylibCZIrw](https://github.com/ZEISS/pylibczirw) |
+| `.lif` | Leica | [readlif](https://github.com/Arcadia-Science/readlif) |
+| `.nd2` | Nikon | [nd2](https://github.com/tlambert03/nd2) |
+| `.oir` | Evident / Olympus | [oirfile](https://github.com/cgohlke/oirfile) |
+| `.ome.tif` | Any that writes OME-TIFF | [ome-types](https://github.com/tlambert03/ome-types) |
+
+A file that holds several images, such as a Leica project, is read in full. Settings
+that differ between its images are all listed.
+
+> [!NOTE]
+> The amount and type of metadata a file can supply depends on the format, microscope,
+> and controlling software version. Always check the highlighted fields. The form also
+> works without an image file.
+
+## For facilities
+
+> [!TIP]
+> Put a template next to `ReMInD.exe` on an acquisition PC and every user starts with
+> the same storage location and instrument name pre-filled.
+
+Copy [`templates/example_ReadME_template.txt`](templates/example_ReadME_template.txt),
+edit its two values, and give it a name ending in `_ReadME_template.txt`. See
+[Templates](docs/user-guide.md#4-templates) in the user guide.
+
+## For developers
+
+<details>
+<summary>Run from source, test and build</summary>
 
 ```bash
 git clone https://github.com/L-Howell/ReMInD.git
 cd ReMInD
 pip install -r requirements.txt
-python src/remind.py
+python src/remind.py                    # run from source (Python 3.12+)
+python -m unittest discover -s tests    # run the tests
 ```
 
----
+To build the executable, run `build_scripts/build.bat` from the `build_scripts` folder.
+Every pull request is also tested and built on Windows by CI, and the resulting
+`ReMInD.exe` is attached to each run. Pushing a version tag such as `v4.0.0` publishes a
+release.
 
-## ⌨️ Creating the Executable
+The [developer guide](docs/developer-guide.md) explains the code layout, how to add a
+file format, how to change the colours, and the release steps.
 
-Run `build_scripts/build.bat` from the `build_scripts` folder. It installs the
-build requirements, runs PyInstaller, and writes `dist/ReMInD.exe`. The
-PyInstaller options, and the reasons for them, are in the script.
+</details>
 
-With conda, **activate the environment first** (e.g. `conda activate remind-py312`).
-Activation puts the environment's `Library\bin` on `PATH`, which PyInstaller
-needs to find the Tcl/Tk (and other) DLLs. Building from a non-activated
-interpreter produces an `.exe` that fails to launch with
-`ImportError: DLL load failed while importing _tkinter`.
+## Credits and licence
 
-You can also download a ready-built `ReMInD.exe` from the artifacts of any
-CI run (see below).
+ReMInD was created by Dr Nicholas Condon (Institute for Molecular Bioscience Microscopy
+Facility, The University of Queensland) as [NickCondon/Remind](https://github.com/NickCondon/Remind).
+This version is developed and maintained independently by Liam Howell (Sydney Microscopy
+and Microanalysis, The University of Sydney).
 
-## ✅ Automated checks
-
-Every push runs [`.github/workflows/ci.yml`](.github/workflows/ci.yml) on Windows:
-the tests, the build script, and a check that the built `ReMInD.exe` starts
-and can load every metadata library. The executable is attached to the run
-as an artifact.
-
-## 📦 Packaged Executable
-- The `ReMInD.exe` file is fully self contained for Windows 11
-- The icon is built into `ReMInD.exe`
-
+Released under the [GNU General Public License v3.0](LICENSE). To report a problem or
+ask for a feature, [open an issue](https://github.com/L-Howell/ReMInD/issues).
