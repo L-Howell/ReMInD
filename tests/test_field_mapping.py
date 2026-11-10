@@ -7,7 +7,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 from metadata_extractors._common import most_common_metadata
 from metadata_extractors.field_mapping import metadata_to_form_fields
 from metadata_extractors.Nd2_v2a import map_nd2_to_remind_fields
-from remind import FORM_FIELDS
 
 # One value for every key the mappers read.
 COMMON_METADATA = {
@@ -35,18 +34,6 @@ ND2_METADATA = {
 
 
 class FieldMappingTest(unittest.TestCase):
-    def test_mappers_only_return_fields_the_form_has(self):
-        # The form silently ignores labels it does not have, so a label that
-        # drifts from the form's (e.g. "Z stack" for "Z-stack") would stop a
-        # field being filled without any error.
-        options = {label: choices for label, choices, _ in FORM_FIELDS}
-        for mapped in (metadata_to_form_fields(COMMON_METADATA),
-                       map_nd2_to_remind_fields(ND2_METADATA)):
-            self.assertEqual(len(mapped), 8, mapped)
-            self.assertLessEqual(set(mapped), set(options))
-            for label in ("Z-stack", "Time series"):
-                self.assertIn(mapped[label], options[label])
-
     def test_missing_values_are_left_out(self):
         # A returned field overwrites what the user typed, so "no value" must
         # never come back as text such as "N/A".

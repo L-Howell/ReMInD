@@ -110,7 +110,7 @@ reads these keys:
 | `System Name` | Microscope name |
 | `Objective Model` | Objective |
 | `Objective Medium` | Immersion |
-| `Acquisition Modes` | Imaging mode |
+| `Acquisition Modes` | Imaging mode, or Specialist modality for STED/TIRF/FLIM |
 | `Channel Names` | Channel info |
 | `Size Z` | Z-stack (Yes/No) |
 | `Size T` | Time series (Yes/No) |

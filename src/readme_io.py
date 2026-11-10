@@ -20,7 +20,6 @@ A ReadMe has up to three parts, in this order:
 Templates use the same format.
 """
 
-# Form fields that hold free text over several lines.
 MULTILINE_FIELDS = ("Notes",)
 
 # Extracted metadata that is a list in memory and written as "a, b, c".

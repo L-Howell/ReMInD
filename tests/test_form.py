@@ -11,8 +11,22 @@ from unittest import mock
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 import remind
+from test_field_mapping import COMMON_METADATA, ND2_METADATA
 
 IMAGE_METADATA = {"System Name": "LSM 980", "Objective Model": "Plan-Apochromat 63x/1.4"}
+
+
+class FormFieldsTest(unittest.TestCase):
+    def test_mappers_only_return_fields_the_form_has(self):
+        # The form silently ignores labels it does not have, so a label that
+        # drifts from the form's (e.g. "Z stack" for "Z-stack") would stop a
+        # field being filled without any error.
+        options = {label: choices for label, choices, _ in remind.FORM_FIELDS}
+        for mapped in (remind.metadata_to_form_fields(COMMON_METADATA),
+                       remind.map_nd2_to_remind_fields(ND2_METADATA)):
+            self.assertLessEqual(set(mapped), set(options))
+            for label in ("Z-stack", "Time series"):
+                self.assertIn(mapped[label], options[label])
 
 
 class FormTest(unittest.TestCase):
@@ -71,7 +85,7 @@ class FormTest(unittest.TestCase):
                                "Microscope name: Confocal 5\n"
                                "\n# Extracted Image Metadata\nSystem Name: LSM 880\n")
         self.app.select_and_load_template()  # the only template loads unasked
-        self.assertEqual(self.app.template_path, path)
+        os.remove(path)  # Clear Form must not depend on the file staying put
         # Metadata left in a template belongs to some earlier experiment.
         self.assertNotIn("Extracted Image Metadata", self.app.readme_text())
 

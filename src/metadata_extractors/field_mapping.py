@@ -58,9 +58,11 @@ def metadata_to_form_fields(metadata):
         terms where the value is recognised and passed through unchanged
         otherwise. When "Acquisition Modes" is a list (one per channel) the
         first usable item is used. It fills "Specialist modality" when it is
-        STED, TIRF or FLIM, and "Imaging mode" otherwise. "Z-stack" and "Time series" are "Yes" when the size is
-        above 1 and "No" otherwise; they are left out only when the size key
-        is missing from the metadata altogether.
+        STED, TIRF or FLIM, and "Imaging mode" otherwise.
+
+        "Z-stack" and "Time series" are "Yes" when the size is above 1 and
+        "No" otherwise; they are left out only when the size key is missing
+        from the metadata altogether.
     """
     values = {
         "Date and time":   _text(metadata.get("Document Creation Date")),
