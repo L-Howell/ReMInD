@@ -2,6 +2,11 @@ import os
 from nd2 import ND2File
 from datetime import datetime
 
+try:
+    from .field_mapping import metadata_to_form_fields
+except ImportError:  # allow running as a standalone script
+    from field_mapping import metadata_to_form_fields
+
 def extract_nd2_metadata(file_path):
     """
     Extract metadata from ND2 file and return a dictionary suitable for ReMInD.
@@ -231,89 +236,47 @@ def extract_nd2_metadata(file_path):
 
 def map_nd2_to_remind_fields(nd2_metadata):
     """
-    Map ND2 metadata to ReMInD form fields.
-    
+    Work out which ReMInD form fields can be filled from ND2 metadata.
+
     Args:
-        nd2_metadata (dict): Metadata dictionary from extract_nd2_metadata
-        
+        nd2_metadata (dict): output of extract_nd2_metadata.
+
     Returns:
-        dict: Dictionary with ReMInD field names as keys
+        dict: form field label -> text to put in that field, in the same form
+        as metadata_to_form_fields: a field is included only when the file
+        has a value for it. Missing keys, "" and "N/A" count as no value.
+
+        "Objective" is built as "<magnification>x/<NA> <model>" when both
+        numbers are known, otherwise it is the model alone. "Immersion" is
+        derived from the refractive index: below 1.1 is "Air", below 1.4 is
+        "Water", above 1.5 is "Oil". An index between 1.4 and 1.5 could be
+        glycerol or silicone, so the field is left out. A non-numeric value
+        is passed through as text.
     """
-    remind_fields = {}
-    
-    # Map ND2 keys to ReMInD fields
-    field_mapping = {
-        "Experiment name": nd2_metadata.get("Experiment Name", ""),
-        "Date and time": nd2_metadata.get("Document Creation Date", ""),
-        # Experimenter name is intentionally left for manual entry, not auto-filled.
-        "Microscope name": nd2_metadata.get("System Name", ""),
-        "Software": nd2_metadata.get("Software Version", ""),
-        "Image format": ".nd2",
-        "Notes": f"Imported from ND2 file: {nd2_metadata.get('File Name', '')}",
-    }
-    
-    # Handle objective information
-    obj_model = nd2_metadata.get("Objective Model", "")
-    obj_mag = nd2_metadata.get("Objective Magnification", "")
-    obj_na = nd2_metadata.get("Objective NA", "")
-    
-    if obj_mag != "N/A" and obj_na != "N/A":
-        field_mapping["Objective"] = f"{obj_mag}x/{obj_na}"
-        if obj_model != "N/A" and obj_model:
-            field_mapping["Objective"] += f" {obj_model}"
-    elif obj_model != "N/A":
-        field_mapping["Objective"] = obj_model
-    else:
-        field_mapping["Objective"] = ""
-    
-    # Handle immersion
-    immersion = nd2_metadata.get("Objective Medium", "")
-    if immersion != "N/A" and immersion:
-        # Convert refractive index to immersion type
-        try:
-            ri = float(immersion)
-            if ri < 1.1:
-                field_mapping["Immersion"] = "Air"
-            elif ri < 1.4:
-                field_mapping["Immersion"] = "Water"
-            elif ri > 1.5:
-                field_mapping["Immersion"] = "Oil"
-            else:
-                field_mapping["Immersion"] = "Other"
-        except:
-            field_mapping["Immersion"] = immersion
-    else:
-        field_mapping["Immersion"] = ""
-    
-    # Handle channel information
-    channel_names = nd2_metadata.get("Channel Names", [])
-    if isinstance(channel_names, list) and channel_names[0] != "N/A":
-        field_mapping["Channel info"] = ", ".join(channel_names)
-    else:
-        field_mapping["Channel info"] = ""
-    
-    # Handle Z-stack and time series
-    z_slices = nd2_metadata.get("Z Slices", "1")
-    time_points = nd2_metadata.get("Time Points", "1")
-    
+    def known(key):
+        value = str(nd2_metadata.get(key, "")).strip()
+        return "" if value == "N/A" else value
+
+    model, mag, na = known("Objective Model"), known("Objective Magnification"), known("Objective NA")
+    objective = f"{mag}x/{na} {model}".strip() if mag and na else model
+
+    medium = known("Objective Medium")
     try:
-        field_mapping["Z stack"] = "Yes" if int(z_slices) > 1 else "No"
-    except:
-        field_mapping["Z stack"] = "No"
-    
-    try:
-        field_mapping["Time series"] = "Yes" if int(time_points) > 1 else "No"
-    except:
-        field_mapping["Time series"] = "No"
-    
-    # UPDATED: Set imaging mode from Modality field
-    modality = nd2_metadata.get("Modality", "")
-    if modality != "N/A" and modality:
-        field_mapping["Imaging mode"] = modality
-    else:
-        field_mapping["Imaging mode"] = ""  # Will be empty if no modality found
-    
-    return field_mapping
+        ri = float(medium)
+        medium = "Air" if ri < 1.1 else "Water" if ri < 1.4 else "Oil" if ri > 1.5 else ""
+    except ValueError:
+        pass
+
+    return metadata_to_form_fields({
+        "Document Creation Date": known("Document Creation Date"),
+        "System Name":            known("System Name"),
+        "Objective Model":        objective,
+        "Objective Medium":       medium,
+        "Acquisition Modes":      known("Modality"),
+        "Channel Names":          nd2_metadata.get("Channel Names"),
+        "Size Z":                 known("Z Slices"),
+        "Size T":                 known("Time Points"),
+    })
 
 # Example usage function for testing
 def test_nd2_extraction(file_path):
@@ -340,4 +303,4 @@ if __name__ == "__main__":
     # Test with a file path
     test_file = input("Enter ND2 file path: ")
     if test_file and os.path.exists(test_file):
-        test_nd2_extraction(test_file)
+        test_nd2_extraction(test_file)

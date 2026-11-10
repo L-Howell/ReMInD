@@ -9,23 +9,10 @@ import re
 import xml.etree.ElementTree as ET
 from oirfile import OirFile
 
-
-_IMMERSION_MAP = {
-    "OIL":      "Oil-23",
-    "WATER":    "Water",
-    "AIR":      "Air",
-    "DRY":      "Air",
-    "GLYCEROL": "Glycerol",
-    "SILICONE": "Silicone",
-}
-
-_ACQ_MODE_MAP = {
-    "LSM":       "Confocal",
-    "CONFOCAL":  "Confocal",
-    "WIDEFIELD": "Widefield",
-    "STED":      "STED",
-    "TIRF":      "TIRF",
-}
+try:
+    from ._common import immersion_term, imaging_mode_term
+except ImportError:  # allow running as a standalone script
+    from _common import immersion_term, imaging_mode_term
 
 
 def _parse_strip_ns(xml_str):
@@ -134,9 +121,9 @@ def extract_oir_metadata(file_path):
         system_name = _find_text(roots, 'systemName')
 
         # --- Acquisition mode ---
-        # <base:deviceName> gives the imaging modality (e.g. "LSM", "WIDEFIELD"), mapped via _ACQ_MODE_MAP
+        # <base:deviceName> gives the imaging modality (e.g. "LSM", "WIDEFIELD")
         raw_mode = _find_text(roots, 'deviceName', 'acquisitionMode', 'modality')
-        acq_mode = _ACQ_MODE_MAP.get(raw_mode.upper(), raw_mode) if raw_mode != 'N/A' else 'N/A'
+        acq_mode = imaging_mode_term(raw_mode)
 
         # --- Objective ---
         # All objective fields live as direct children of <commonimage:objectiveLens>
@@ -159,7 +146,7 @@ def extract_oir_metadata(file_path):
             parts.append(f"NA {obj_na}")
         objective_str = '  '.join(parts) if parts else 'N/A'
 
-        immersion = _IMMERSION_MAP.get(imm_raw.upper(), imm_raw) if imm_raw != 'N/A' else 'N/A'
+        immersion = immersion_term(imm_raw)
 
         # --- Channel wavelengths and pinhole sizes ---
         # Imaging channels live under <commonimage:phase>/<commonphase:group>/<commonphase:channel>.

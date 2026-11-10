@@ -59,3 +59,76 @@ def most_common_metadata(dicts):
         best_sig = counts.most_common(1)[0][0]
         result[k] = first_seen[best_sig]
     return result
+
+
+# Image files say only "oil", never which oil, so the form gets plain "Oil"
+# and the user picks Oil-23 or Oil-37 if they know.
+_IMMERSION_TERMS = {
+    "OIL":          "Oil",
+    "WATER":        "Water",
+    "WATERDIPPING": "Water",
+    "AIR":          "Air",
+    "DRY":          "Air",
+    "GLYCEROL":     "Glycerol",
+    "GLYCERIN":     "Glycerol",
+    "GLYCERINE":    "Glycerol",
+    "SILICONE":     "Silicone",
+}
+
+# Keys are OME acquisition-mode names (also used by CZI) plus the short device
+# names found in OIR files. Values are the terms used by the ReMInD form.
+_IMAGING_MODE_TERMS = {
+    "WIDEFIELD":                       "Widefield",
+    "LASERSCANNINGCONFOCALMICROSCOPY": "Confocal",
+    "LASERSCANNINGMICROSCOPY":         "Confocal",
+    "LSM":                             "Confocal",
+    "CONFOCAL":                        "Confocal",
+    "SLITSCANCONFOCAL":                "Confocal",
+    "SPINNINGDISKCONFOCAL":            "Spinning Disc Confocal",
+    "MULTIPHOTONMICROSCOPY":           "2Photon",
+    "TOTALINTERNALREFLECTION":         "TIRF",
+    "TIRF":                            "TIRF",
+    "STRUCTUREDILLUMINATION":          "Widefield",
+    "FLUORESCENCELIFETIME":            "FLIM",
+    "STED":                            "STED",
+}
+
+
+def _lookup_key(value):
+    """Upper-case a value and drop spaces, underscores and hyphens."""
+    return str(value).upper().replace("_", "").replace(" ", "").replace("-", "")
+
+
+def immersion_term(raw):
+    """
+    Translate an immersion medium as written in an image file into the term
+    used by the ReMInD form.
+
+    Args:
+        raw: the medium from the file, e.g. "OIL", "Dry", "WaterDipping".
+            Matching ignores case, spaces, underscores and hyphens.
+
+    Returns:
+        The form's term (e.g. "Oil", "Air", "Water") when the medium is
+        recognised. Any other value, including "N/A" and "", is returned
+        unchanged.
+    """
+    return _IMMERSION_TERMS.get(_lookup_key(raw), raw)
+
+
+def imaging_mode_term(raw):
+    """
+    Translate an acquisition mode as written in an image file into the term
+    used by the ReMInD form.
+
+    Args:
+        raw: the mode from the file, e.g. "LaserScanningConfocalMicroscopy",
+            "LSM", "SPINNING_DISK_CONFOCAL". Matching ignores case, spaces,
+            underscores and hyphens.
+
+    Returns:
+        The form's term (e.g. "Confocal", "Widefield") when the mode is
+        recognised. Any other value, including "N/A" and "", is returned
+        unchanged.
+    """
+    return _IMAGING_MODE_TERMS.get(_lookup_key(raw), raw)

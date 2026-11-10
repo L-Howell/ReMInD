@@ -13,33 +13,9 @@ import os
 from ome_types import from_tiff
 
 try:
-    from ._common import most_common_metadata
+    from ._common import most_common_metadata, immersion_term, imaging_mode_term
 except ImportError:  # allow running as a standalone script
-    from _common import most_common_metadata
-
-
-_IMMERSION_MAP = {
-    "OIL":          "Oil-23",
-    "WATER":        "Water",
-    "WATERDIPPING": "Water",
-    "AIR":          "Air",
-    "DRY":          "Air",
-    "GLYCEROL":     "Glycerol",
-    "MULTI":        "Other",
-    "OTHER":        "Other",
-}
-
-_ACQ_MODE_MAP = {
-    "WIDEFIELD":                       "Widefield",
-    "LASERSCANNINGCONFOCALMICROSCOPY": "Confocal",
-    "LASERSCANNINGMICROSCOPY":         "Confocal",
-    "SLITSCANCONFOCAL":                "Confocal",
-    "SPINNINGDISKCONFOCAL":            "Spinning Disc Confocal",
-    "MULTIPHOTONMICROSCOPY":           "2Photon",
-    "TOTALINTERNALREFLECTION":         "TIRF",
-    "STRUCTUREDILLUMINATION":          "Widefield",
-    "FLUORESCENCELIFETIME":            "FLIM",
-}
+    from _common import most_common_metadata, immersion_term, imaging_mode_term
 
 
 def _val(enum_or_value):
@@ -127,9 +103,7 @@ def _image_metadata(ome, image):
     # Imaging mode: most common channel acquisition mode, mapped to a friendly term.
     acq_mode = "N/A"
     if acq_modes:
-        raw_mode = max(set(acq_modes), key=acq_modes.count)
-        key = str(raw_mode).upper().replace("_", "").replace(" ", "")
-        acq_mode = _ACQ_MODE_MAP.get(key, raw_mode)
+        acq_mode = imaging_mode_term(max(set(acq_modes), key=acq_modes.count))
 
     # --- Objective / instrument ---
     objective, instrument = _resolve_objective(ome, image)
@@ -158,13 +132,11 @@ def _image_metadata(ome, image):
             parts.append(f"NA {obj_na}")
         objective_str = "  ".join(parts) if parts else "N/A"
         if objective.immersion is not None:
-            immersion = _IMMERSION_MAP.get(str(_val(objective.immersion)).upper(),
-                                           _val(objective.immersion))
+            immersion = immersion_term(_val(objective.immersion))
     # ObjectiveSettings medium can override / supply immersion.
     if immersion == "N/A" and image.objective_settings is not None \
             and image.objective_settings.medium is not None:
-        immersion = _IMMERSION_MAP.get(str(_val(image.objective_settings.medium)).upper(),
-                                       _val(image.objective_settings.medium))
+        immersion = immersion_term(_val(image.objective_settings.medium))
 
     # --- Pixel sizes ---
     px_x = _safe_round(px.physical_size_x) if px.physical_size_x is not None else "N/A"

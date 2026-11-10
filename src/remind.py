@@ -38,6 +38,8 @@ try:
     from metadata_extractors.OIR_MetadataGUI import extract_oir_metadata
     from metadata_extractors.OMETiff_MetadataGUI import extract_ometiff_metadata
     from metadata_extractors._common import most_common_metadata
+    from metadata_extractors.field_mapping import metadata_to_form_fields
+    from readme_io import format_readme, parse_readme
 except ImportError as e:
     print(f"Import error: {e}")
     print("Make sure the metadata_extractors folder contains the required files")
@@ -62,6 +64,73 @@ APP_NAME = "ReMInD"
 APP_VERSION = "3.0.0"
 APP_AUTHOR = "Nicholas Condon, IMB Microscopy, The University of Queensland, Brisbane Australia; Liam Howell, Sydney Microscopy and Microanalysis, The University of Sydney, Sydney Australia"
 APP_DATE = "June 2026"
+
+# (label, dropdown options or "" for a text box, tooltip). The dropdowns also
+# accept typed text, so the options are suggestions rather than limits.
+FORM_FIELDS = [
+    ("Experiment name", "", "Title of the experiment."),
+    ("Storage Location", "", "Where the raw data is stored, e.g. a data repository / shared drive or project name"),
+    ("Date and time", "", "Date and time of acquisition. The Now button will autopopulate the fields"),
+    ("Experimentor Name(s)", "", "Enter your full name."),
+    ("Sample Information", "", "e.g. Sample ID, or cell line, animal strain"),
+    ("Genetic Modifications", "", "e.g. eGFP- mCherry-y"),
+    ("Antibody or probes", "", "e.g. Alexa488-Phalloidin, DAPI, Alexa647-GaM"),
+    ("Fixation / Live Media", "", "Fixation method used, or details of live imaging reagents"),
+    ("Sample Carrier", "", "e.g. 35mm Dish, #1.5 coverslip, chamber slide"),
+    ("Mounting medium", "", "e.g. Prolong Gold, Mowiol, PBS, glycerol"),
+    ("Microscope name", "", "e.g. Confocal 5"),
+    ("Objective", "", "Objective lens details. e.g. Plan Apochromat 63x 1.4NA"),
+    ("Immersion", ["Air", "Water", "Immersol W", "Glycerol", "Silicone", "Oil-23", "Oil-37"], "Select the immersion used."),
+    ("Imaging mode", ["Confocal", "Widefield", "Spinning Disc Confocal", "Lightsheet", "Lattice Lightsheet", "2Photon"], "Select the imaging mode used."),
+    ("Specialist modality", ["Airyscan", "STED", "FLIM", "SoRa", "TIRF"], "Select any specialist imaging modality used."),
+    ("Environmental Conditions", "", "e.g. Temperature and CO2"),
+    ("Channel info", "", "Channel names, stains or labels used."),
+    ("Z-stack", ["Yes", "No", "Both"], "Was a Z-stack acquired?"),
+    ("Time series", ["Yes", "No", "Both"], "Was a time-lapse series acquired?"),
+    ("Image format", "", "Image file format (e.g., .czi, .tif, .lif, .oir)."),
+    ("Notes", "", "Analysis intent or relevant notes."),
+]
+
+
+def _read_lif(path):
+    """Return one metadata dict for a LIF file, which can hold many images."""
+    per_image = extract_lif_metadata(path)
+    if not per_image:
+        raise ValueError("No images found in LIF file.")
+    # The first image is often an overview, so use the most common value of
+    # each item rather than the first.
+    return most_common_metadata(per_image)
+
+
+# File extension -> (format name, function returning the metadata dict for a
+# file, function turning that dict into form field values).
+IMAGE_READERS = {
+    ".czi":  ("CZI", lambda path: extract_metadata(path)[0], metadata_to_form_fields),
+    ".lif":  ("LIF", _read_lif, metadata_to_form_fields),
+    ".nd2":  ("ND2", extract_nd2_metadata, map_nd2_to_remind_fields),
+    ".oir":  ("OIR", lambda path: extract_oir_metadata(path)[0], metadata_to_form_fields),
+    ".tif":  ("OME-TIFF", lambda path: extract_ometiff_metadata(path)[0], metadata_to_form_fields),
+    ".tiff": ("OME-TIFF", lambda path: extract_ometiff_metadata(path)[0], metadata_to_form_fields),
+}
+
+
+def application_folder():
+    """
+    Return the folder that holds ReMInD: the folder of ReMInD.exe for a built
+    executable, or the folder of this file when run from source.
+
+    Templates are looked up here rather than in the working directory, which
+    is somewhere else when the program is started from a shortcut.
+    """
+    if getattr(sys, "frozen", False):
+        return os.path.dirname(sys.executable)
+    return current_dir
+
+
+def find_templates(folder):
+    """Return the paths of the *_ReadME_template.txt files in folder, sorted."""
+    return sorted(glob.glob(os.path.join(glob.escape(folder), "*_ReadME_template.txt")))
+
 
 class ToolTip:
     def __init__(self, widget, text):
@@ -130,8 +199,11 @@ class REMBIGUI:
         self.setup_scrollable_window()
 
         self.entries = {}
-        self.extra_fields = {}
         self.text_fields = {}
+        self.last_metadata_output = {}
+        # Template loaded at startup, if any. Clear Form returns to its values.
+        self.template_path = None
+        self.template_fields = {}
 
         # Font size management - adjust based on screen size
         base_size = 10 if screen_width >= 1920 else 9 if screen_width >= 1200 else 8
@@ -140,29 +212,7 @@ class REMBIGUI:
         self.app_font = tkfont.Font(family=self.font_family, size=self.base_font_size)
         self.bold_font = tkfont.Font(family=self.font_family, size=self.base_font_size, weight="bold")
 
-        self.fields = [
-            ("Experiment name", "", "Title of the experiment."),
-            ("Storage Location", "", "Where the raw data is stored, e.g. a data repository / shared drive or project name"),
-            ("Date and time", "", "Date and time of acquisition. The Now button will autopopulate the fields"),
-            ("Experimentor Name(s)", "", "Enter your full name."),
-            ("Sample Information", "", "e.g. Sample ID, or cell line, animal strain"),
-            ("Genetic Modifications", "", "e.g. eGFP- mCherry-y"),
-            ("Antibody or probes", "", "e.g. Alexa488-Phalloidin, DAPI, Alexa647-GaM"),
-            ("Fixation / Live Media", "", "Fixation method used, or details of live imaging reagents"),
-            ("Sample Carrier", "", "e.g. 35mm Dish, #1.5 coverslip, chamber slide"),
-            ("Mounting medium", "", "e.g. Prolong Gold, Mowiol, PBS, glycerol"),
-            ("Microscope name", "", "e.g. Confocal 5"),
-            ("Objective", "", "Objective lens details. e.g. Plan Apochromat 63x 1.4NA"),
-            ("Immersion", ["Air", "Water", "Immersol W", "Glycerol", "Silicone", "Oil-23", "Oil-37", "Other"], "Select the immersion used."),
-            ("Imaging mode", ["Confocal", "Widefield", "Spinning Disc Confocal", "Lightsheet", "Lattice Lightsheet", "2Photon", "Other"], "Select the imaging mode used."),
-            ("Specialist modality", ["Airyscan", "STED", "FLIM", "SoRa", "TIRF", "Other"], "Select any specialist imaging modality used."),
-            ("Environmental Conditions", "", "e.g. Temperature and CO2"),
-            ("Channel info", "", "Channel names, stains or labels used."),
-            ("Z-stack", ["Yes", "No", "Both"], "Was a Z-stack acquired?"),
-            ("Time series", ["Yes", "No", "Both"], "Was a time-lapse series acquired?"),
-            ("Image format", "", "Image file format (e.g., .czi, .tif, .lif, .oir)."),
-            ("Notes", "", "Analysis intent or relevant notes."),
-        ]
+        self.fields = FORM_FIELDS
 
         self.build_form()
         # Start in dark mode by default (user can switch with the toggle).
@@ -188,22 +238,6 @@ class REMBIGUI:
                 combo.grid(row=self.row_counter, column=1, padx=5, pady=2, sticky="ew")
                 self.entries[label] = var
                 ToolTip(combo, tooltip_text)
-
-                def handle_other(event, label=label):
-                    if var.get() == "Other":
-                        if label not in self.extra_fields:
-                            other_row = self.row_counter + len(self.extra_fields) + 1
-                            entry = tk.Entry(parent, font=self.app_font)
-                            entry.grid(row=other_row, column=1, padx=5, pady=2, sticky="ew")
-                            tk.Label(parent, text=f"{label} (Other)", font=self.app_font).grid(row=other_row, column=0, sticky="e")
-                            self.extra_fields[label] = entry
-                            ToolTip(entry, f"Specify 'Other' for {label.lower()}")
-                    else:
-                        if label in self.extra_fields:
-                            self.extra_fields[label].destroy()
-                            del self.extra_fields[label]
-
-                combo.bind("<<ComboboxSelected>>", handle_other)
 
             elif label == "Date and time":
                 frame = tk.Frame(parent)
@@ -379,18 +413,51 @@ class REMBIGUI:
         # Update the root reference for form building
         self.form_root = self.scrollable_frame
 
-    def generate_readme(self):
-        # Get experiment name for filename
-        experiment_name = self.entries["Experiment name"].get().strip()
-        if experiment_name:
-            # Clean filename (remove invalid characters)
-            clean_name = "".join(c for c in experiment_name if c.isalnum() or c in (' ', '-', '_')).rstrip()
-            default_filename = f"{clean_name}_ReadME.txt"
+    def field_values(self):
+        """Return [(label, text)] for every form field, in form order."""
+        values = []
+        for label, _, _ in self.fields:
+            if label in self.text_fields:
+                values.append((label, self.text_fields[label].get("1.0", tk.END).strip()))
+            else:
+                values.append((label, self.entries[label].get()))
+        return values
+
+    def set_field(self, label, value):
+        """Replace the content of a form field. Labels the form does not have
+        are ignored, so files written by other versions still load."""
+        widget = self.entries.get(label)
+        if widget is None:
+            return
+        if label in self.text_fields:
+            widget.delete("1.0", tk.END)
+            widget.insert("1.0", value)
+        elif isinstance(widget, tk.StringVar):
+            widget.set(value)
         else:
-            default_filename = "ReadME.txt"
-            
+            widget.delete(0, tk.END)
+            widget.insert(0, value)
+
+    def default_filename(self, suffix):
+        """Return "<experiment name>_<suffix>", or just the suffix when the
+        experiment name is empty. Characters that are not letters, digits,
+        spaces, hyphens or underscores are dropped from the name."""
+        name = self.entries["Experiment name"].get().strip()
+        clean_name = "".join(c for c in name if c.isalnum() or c in (' ', '-', '_')).rstrip()
+        return f"{clean_name}_{suffix}" if clean_name else suffix
+
+    def readme_text(self):
+        """Return the ReadMe.txt content for the current state of the form."""
+        return format_readme(
+            f"# Generated by {APP_NAME} v{APP_VERSION} — {APP_AUTHOR}, {APP_DATE}",
+            self.field_values(),
+            self.get_condition_rows(),
+            self.last_metadata_output,
+        )
+
+    def generate_readme(self):
         save_path = filedialog.asksaveasfilename(defaultextension=".txt",
-                                                 initialfile=default_filename,  # <-- Use dynamic filename
+                                                 initialfile=self.default_filename("ReadME.txt"),
                                                  filetypes=[("Text files", "*.txt")],
                                                  title="Save ReadMe.txt as")
         if not save_path:
@@ -398,37 +465,9 @@ class REMBIGUI:
         if os.path.exists(save_path):
             if not messagebox.askyesno("Overwrite?", "This file already exists. Overwrite?"):
                 return
-
-        lines = [f"# Generated by {APP_NAME} v{APP_VERSION} — {APP_AUTHOR}, {APP_DATE}", ""]
-        for label, _, _ in self.fields:
-            if label in self.text_fields:
-                value = self.text_fields[label].get("1.0", tk.END).strip()
-                lines.append(f"{label}:\n---\n{value}\n---")
-            elif isinstance(self.entries[label], tk.StringVar):
-                lines.append(f"{label}: {self.entries[label].get()}")
-            else: 
-                lines.append(f"{label}: {self.entries[label].get()}")
-            if label in self.extra_fields:
-                lines.append(f"{label} (Other): {self.extra_fields[label].get()}")
-
-        # --- Filename Key (filename keyword -> group/treatment) ---
-        condition_pairs = self.get_condition_rows()
-        if condition_pairs:
-            lines.append("\n# Filename Key")
-            for keyword, group in condition_pairs:
-                lines.append(f"{keyword}: {group}")
-
-        # --- Append metadata if available ---
-        if hasattr(self, "last_metadata_output") and self.last_metadata_output:
-            lines.append("\n# Extracted Image Metadata")
-            for k, v in self.last_metadata_output.items():
-                if isinstance(v, list):
-                    v = ", ".join(str(i) for i in v)
-                lines.append(f"{k}: {v}")
-
         try:
             with open(save_path, "w", encoding="utf-8") as f:
-                f.write("\n".join(lines))
+                f.write(self.readme_text())
             messagebox.showinfo("Success", "ReadMe.txt generated successfully.")
         except Exception as e:
             messagebox.showerror("Error", f"Could not write file: {e}")
@@ -440,25 +479,14 @@ class REMBIGUI:
         self.parse_readme_file(path)
 
     def clear_form(self):
-        for label, widget in self.entries.items():
-            if label in self.text_fields:
-                widget.delete("1.0", tk.END)
-            elif isinstance(widget, tk.StringVar):
-                widget.set("")
-            else:
-                widget.delete(0, tk.END)
-
-        for extra in list(self.extra_fields.values()):
-            extra.destroy()
-        self.extra_fields.clear()
-
-        # Clear the Extracted Image Metadata box
-        self.metadata_text.config(state="normal")
-        self.metadata_text.delete("1.0", tk.END)
-        self.metadata_text.config(state="disabled")
-
-        # Reset the Filename Key table to two empty rows
+        """Empty the form, then put back the template's values if a template
+        was loaded at startup."""
+        for label, _, _ in self.fields:
+            self.set_field(label, "")
         self._reset_condition_rows()
+        self.show_metadata_in_window({})
+        if self.template_path:
+            self.load_template(self.template_path)
 
     def add_condition_row(self, keyword="", group=""):
         """Append a (filename keyword -> group/treatment) row to the Filename Key table."""
@@ -502,106 +530,55 @@ class REMBIGUI:
             self.add_condition_row()
 
     def parse_readme_file(self, path):
+        """
+        Load a ReadMe.txt into the form.
+
+        Fields that have a value in the file replace what is in the form;
+        fields that are empty or absent in the file are left as they are. The
+        Filename Key and the extracted image metadata are replaced by the
+        file's, and emptied if the file has none.
+
+        Returns the field values read from the file, or None if the file
+        could not be read (an error message is shown).
+        """
         try:
             with open(path, "r", encoding="utf-8") as f:
-                lines = f.readlines()
-
-            idx = 0
-            extracted_metadata = {}  # Store extracted metadata separately
-            condition_rows = []      # Filename Key (keyword -> group) rows
-
-            while idx < len(lines):
-                line = lines[idx].strip()
-
-                # Section: Filename Key — read keyword: group rows until the next section
-                if line == "# Filename Key":
-                    idx += 1
-                    while idx < len(lines):
-                        row_line = lines[idx].strip()
-                        if row_line.startswith("#"):
-                            break
-                        if row_line and ": " in row_line:
-                            keyword, group = row_line.split(": ", 1)
-                            condition_rows.append((keyword.strip(), group.strip()))
-                        idx += 1
-                    continue
-
-                # Section: Extracted Image Metadata — consumes the remainder of the file
-                if line == "# Extracted Image Metadata":
-                    idx += 1
-                    while idx < len(lines):
-                        metadata_line = lines[idx].strip()
-                        if metadata_line and ": " in metadata_line:
-                            key, value = metadata_line.split(": ", 1)
-                            # Convert comma-separated values back to lists where appropriate
-                            if ", " in value and key in ["Channel Names", "Acquisition Modes"]:
-                                extracted_metadata[key] = value.split(", ")
-                            else:
-                                extracted_metadata[key] = value
-                        idx += 1
-                    break  # We've processed all metadata
-
-                # Skip other comment lines and blanks
-                if line.startswith("#") or not line:
-                    idx += 1
-                    continue
-
-                # Handle multi-line fields (like Notes)
-                if line.endswith(":") and idx + 1 < len(lines) and lines[idx + 1].strip() == "---":
-                    label = line[:-1].strip()
-                    idx += 2
-                    value_lines = []
-                    while idx < len(lines) and lines[idx].strip() != "---":
-                        value_lines.append(lines[idx].rstrip("\n"))
-                        idx += 1
-                    value = "\n".join(value_lines)
-                    idx += 1
-                else:
-                    # Handle single-line fields
-                    if ": " not in line:
-                        idx += 1
-                        continue
-                    label, value = line.split(": ", 1)
-                    label = label.strip()
-                    value = value.strip()
-                    idx += 1
-
-                # Populate the form fields (existing logic)
-                if label in self.text_fields:
-                    self.text_fields[label].delete("1.0", tk.END)
-                    self.text_fields[label].insert("1.0", value)
-                elif label in self.entries:
-                    widget = self.entries[label]
-                    if isinstance(widget, tk.StringVar):
-                        widget.set(value)
-                    elif isinstance(widget, tk.Entry):
-                        widget.delete(0, tk.END)
-                        widget.insert(0, value)
-
-            # Reload the Filename Key table from the file (empty -> two blank rows)
-            self._reset_condition_rows(condition_rows)
-
-            # If we found extracted metadata, reload it into the metadata panel
-            if extracted_metadata:
-                self.last_metadata_output = extracted_metadata  # Store for later use
-                self.show_metadata_in_window(extracted_metadata)
-            else:
-                # Clear the metadata panel if no extracted metadata was found
-                self.metadata_text.config(state="normal")
-                self.metadata_text.delete("1.0", tk.END)
-                self.metadata_text.config(state="disabled")
-
+                fields, filename_key, metadata = parse_readme(f.read())
         except Exception as e:
             messagebox.showerror("Error", f"Could not load file: {e}")
+            return None
+
+        for label, value in fields.items():
+            self.set_field(label, value)
+        self._reset_condition_rows(filename_key)
+        self.show_metadata_in_window(metadata)
+        return fields
+
+    def load_template(self, path):
+        """Load a template into the form and remember it for Clear Form."""
+        fields = self.parse_readme_file(path)
+        if fields is None:
+            return
+        self.template_path = path
+        self.template_fields = fields
+        # A template made by renaming a real ReadMe still carries that
+        # experiment's image metadata, which must not be written into the
+        # ReadMe of every later experiment.
+        self.show_metadata_in_window({})
 
     def select_and_load_template(self):
-        template_files = glob.glob("*_ReadME_template.txt")
+        """Offer the templates stored next to the program. A single template
+        is loaded without asking."""
+        template_files = find_templates(application_folder())
         if not template_files:
+            return
+        if len(template_files) == 1:
+            self.load_template(template_files[0])
             return
 
         def load_template_and_close(fname):
-            self.parse_readme_file(fname)
             popup.destroy()
+            self.load_template(fname)
 
         popup = tk.Toplevel(self.root)
         popup.title("Select a Metadata Template")
@@ -616,7 +593,8 @@ class REMBIGUI:
         button_frame.pack(pady=5, fill="both", expand=True)
 
         for fname in template_files:
-            b = tk.Button(button_frame, text=fname, width=40, command=lambda f=fname: load_template_and_close(f))
+            b = tk.Button(button_frame, text=os.path.basename(fname), width=40,
+                          command=lambda f=fname: load_template_and_close(f))
             b.pack(pady=2)
 
         tk.Button(popup, text="Skip / Clear Form", command=popup.destroy).pack(pady=10)
@@ -638,7 +616,7 @@ class REMBIGUI:
         help_text.insert("end", "\t• Not every field needs to be filled in.\n")
         help_text.insert("end", "\t• Enter where your raw data is stored (e.g. a data repository or project name) in the 'Storage Location' field.\n")
         help_text.insert("end", "\t• Hover your cursor over the text box for more description for the field.\n")
-        help_text.insert("end", "\t• Some fields contain drop down lists you can choose items from, if choosing 'other' provide the information in the notes box.\n")
+        help_text.insert("end", "\t• Some fields contain drop down lists you can choose items from. If none of the items fit, type your own value into the box.\n")
         help_text.insert("end", "\t• The notes box can be filled in with as much detail as possible. You can use the 'Timestamp' button to generate a new line with the date and time.\n\n")
 
         help_text.insert("end", "🔑 Filename Key \n", "subtitle")
@@ -674,8 +652,10 @@ class REMBIGUI:
         
         help_text.insert("end", "📖 Templates \n", "subtitle")
         help_text.insert("end", "\t• The program automatically looks for any template files stored in the same location as the executable.\n")
+        help_text.insert("end", "\t• A single template is loaded automatically, and 'Clear Form' returns to its values.\n")
+        help_text.insert("end", "\t• If the template sets the microscope name, loading an image file does not change it.\n")
         help_text.insert("end", "\t• Any template file must be saved as *_ReadMe_template.txt with something in place of the *.\n")
-        help_text.insert("end", "\t• Multiple templates can be handled with a popup on startup allowing you to choose from a template or skip.\n\n")
+        help_text.insert("end", "\t• If there are several templates, a popup on startup lets you choose one or skip.\n\n")
         
         help_text.insert("end", "📁 Export as JSON\n", "subtitle")
         help_text.insert("end", "\t• Export all form data and extracted metadata as a structured JSON file.\n")
@@ -714,304 +694,55 @@ class REMBIGUI:
 
     def load_fields_from_image(self):
         filetypes = [
-            ("Image files", "*.tif *.tiff *.czi *.lif *.nd2 *.oir *.jpg *.png *.bmp"),
+            ("Image files", "*.czi *.lif *.nd2 *.oir *.tif *.tiff"),
             ("All files", "*.*"),
         ]
         path = filedialog.askopenfilename(
             title="Select an image file to extract metadata",
             filetypes=filetypes
         )
-        if not path:
+        if path:
+            self.load_image_file(path)
+
+    def load_image_file(self, path):
+        """
+        Fill the form from an image file's metadata and show the metadata.
+
+        Only fields the file has a value for are changed. The microscope name
+        is also left alone when the template supplied one, because the
+        facility's own name for the instrument is more useful than the model
+        name stored in the file (which still appears in the extracted
+        metadata). Unsupported file types and unreadable files show a message
+        and change nothing.
+        """
+        ext = os.path.splitext(path)[1].lower()
+        if ext not in IMAGE_READERS:
+            messagebox.showinfo("Not Supported", "Only CZI, LIF, ND2, OIR and OME-TIFF files are supported for metadata extraction at this time.")
             return
 
-        ext = os.path.splitext(path)[1].lower()
-        if ext == ".czi":
-            try:
-                metadata_output, _ = extract_metadata(path)
+        format_name, read_metadata, to_form_fields = IMAGE_READERS[ext]
+        try:
+            metadata = read_metadata(path)
+            form_values = to_form_fields(metadata)
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to extract {format_name} metadata:\n{e}")
+            return
 
-                # Map CZI metadata keys to ReMInD form fields
-                field_map = {
-                    "Experiment name": None,  # Do not auto-fill from file name
-                    "Date and time": "Document Creation Date",
-                    "Microscope name": "System Name",
-                    "Objective": "Objective Model",
-                    "Immersion": "Objective Medium",
-                    "Imaging mode": "Acquisition Modes",
-                    "Channel info": "Channel Names",
-                    "Image format": None,
-                    "Notes": None,
-                }
+        if self.template_fields.get("Microscope name"):
+            form_values.pop("Microscope name", None)
+        for label, value in form_values.items():
+            self.set_field(label, value)
+        self.set_field("Image format", ext)
+        self.text_fields["Notes"].insert(tk.END, f"\n[Imported from {format_name}]\n")
 
-                for remind_label, czi_key in field_map.items():
-                    if czi_key is None:
-                        if remind_label == "Image format":
-                            widget = self.entries[remind_label]
-                            if isinstance(widget, tk.StringVar):
-                                widget.set(ext)
-                            else:
-                                widget.delete(0, tk.END)
-                                widget.insert(0, ext)
-                        elif remind_label == "Notes":
-                            notes_widget = self.text_fields.get("Notes")
-                            if notes_widget:
-                                notes_widget.insert(tk.END, "\n[Imported from CZI]\n")
-                        continue
-
-                    value = metadata_output.get(czi_key, "")
-                    # Special handling for Imaging mode (Acquisition Modes)
-                    if remind_label == "Imaging mode":
-                        if isinstance(value, list) and value:
-                            value = str(value[0])  # Use only the first value
-                        elif isinstance(value, list):
-                            value = ""
-                    elif isinstance(value, list):
-                        value = ", ".join(str(v) for v in value)
-                    widget = self.entries.get(remind_label)
-                    if widget is None:
-                        continue
-                    if isinstance(widget, tk.StringVar):
-                        widget.set(value)
-                    elif isinstance(widget, tk.Entry):
-                        widget.delete(0, tk.END)
-                        widget.insert(0, value)
-                    elif remind_label == "Notes" and remind_label in self.text_fields:
-                        self.text_fields[remind_label].insert(tk.END, value)
-
-                # If DataSourceTypeName is Confocal, set Imaging mode to Confocal
-                if metadata_output.get("DataSourceTypeName", "").lower() == "confocal":
-                    imaging_mode_widget = self.entries.get("Imaging mode")
-                    if imaging_mode_widget:
-                        if isinstance(imaging_mode_widget, tk.StringVar):
-                            imaging_mode_widget.set("Confocal")
-                        elif isinstance(imaging_mode_widget, tk.Entry):
-                            imaging_mode_widget.delete(0, tk.END)
-                            imaging_mode_widget.insert(0, "Confocal")
-
-                self.show_metadata_in_window(metadata_output)
-                self.last_metadata_output = metadata_output  # Store for later use
-
-                messagebox.showinfo("Success", "Fields loaded from CZI metadata.")
-
-            except Exception as e:
-                messagebox.showerror("Error", f"Failed to extract CZI metadata:\n{e}")
-        elif ext == ".lif":
-            try:
-                metadata_list = extract_lif_metadata(path)
-                if not metadata_list:
-                    messagebox.showerror("Error", "No images found in LIF file.")
-                    return
-                # Collapse multi-series LIF to the most common metadata per field,
-                # rather than blindly taking the first (which may be an overview).
-                metadata_output = most_common_metadata(metadata_list)
-                # Map LIF metadata keys to ReMInD form fields
-                field_map = {
-                    "Experiment name": None,
-                    "Date and time": "Document Creation Date",
-                    "Microscope name": "System Name",
-                    "Objective": "Objective Model",
-                    "Immersion": "Objective Medium",
-                    "Imaging mode": "Acquisition Modes",
-                    "Channel info": "Channel Names",
-                    "Image format": None,
-                    "Notes": None,
-                }
-                for remind_label, lif_key in field_map.items():
-                    if lif_key is None:
-                        if remind_label == "Image format":
-                            widget = self.entries[remind_label]
-                            if isinstance(widget, tk.StringVar):
-                                widget.set(ext)
-                            else:
-                                widget.delete(0, tk.END)
-                                widget.insert(0, ext)
-                        elif remind_label == "Notes":
-                            notes_widget = self.text_fields.get("Notes")
-                            if notes_widget:
-                                notes_widget.insert(tk.END, "\n[Imported from LIF]\n")
-                        continue
-                    value = metadata_output.get(lif_key, "")
-                    if remind_label == "Imaging mode":
-                        if isinstance(value, list) and value:
-                            value = str(value[0])
-                        elif isinstance(value, list):
-                            value = ""
-                    elif isinstance(value, list):
-                        value = ", ".join(str(v) for v in value)
-                    widget = self.entries.get(remind_label)
-                    if widget is None:
-                        continue
-                    if isinstance(widget, tk.StringVar):
-                        widget.set(value)
-                    elif isinstance(widget, tk.Entry):
-                        widget.delete(0, tk.END)
-                        widget.insert(0, value)
-                    elif remind_label == "Notes" and remind_label in self.text_fields:
-                        self.text_fields[remind_label].insert(tk.END, value)
-
-                self.show_metadata_in_window(metadata_output)
-                self.last_metadata_output = metadata_output  # Store for later use
-
-                messagebox.showinfo("Success", "Fields loaded from LIF metadata.")
-
-            except Exception as e:
-                messagebox.showerror("Error", f"Failed to extract LIF metadata:\n{e}")
-        elif ext == ".nd2":
-            try:
-                # Extract ND2 metadata using your new functions
-                metadata_output = extract_nd2_metadata(path)
-                remind_fields = map_nd2_to_remind_fields(metadata_output)
-                
-                # Map ND2 metadata to ReMInD form fields
-                for remind_label, value in remind_fields.items():
-                    if not value or remind_label == "Notes":  # Skip empty values and Notes
-                        continue
-                        
-                    widget = self.entries.get(remind_label)
-                    if widget is None:
-                        continue
-                        
-                    if isinstance(widget, tk.StringVar):
-                        widget.set(value)
-                    elif isinstance(widget, tk.Entry):
-                        widget.delete(0, tk.END)
-                        widget.insert(0, value)
-
-                # Special handling for Notes field to add import info only
-                notes_widget = self.text_fields.get("Notes")
-                if notes_widget:
-                    notes_widget.insert(tk.END, "\n[Imported from ND2]\n")
-
-                # Display the raw metadata in the metadata window
-                self.show_metadata_in_window(metadata_output)
-                self.last_metadata_output = metadata_output  # Store for later use
-
-                messagebox.showinfo("Success", "Fields loaded from ND2 metadata.")
-
-            except Exception as e:
-                messagebox.showerror("Error", f"Failed to extract ND2 metadata:\n{e}")
-
-        elif ext == ".oir":
-            try:
-                metadata_output, _ = extract_oir_metadata(path)
-
-                field_map = {
-                    "Experiment name": None,
-                    "Date and time": "Document Creation Date",
-                    "Microscope name": "System Name",
-                    "Objective": "Objective Model",
-                    "Immersion": "Objective Medium",
-                    "Imaging mode": "Acquisition Modes",
-                    "Channel info": "Channel Names",
-                    "Image format": None,
-                    "Notes": None,
-                }
-
-                for remind_label, oir_key in field_map.items():
-                    if oir_key is None:
-                        if remind_label == "Image format":
-                            widget = self.entries[remind_label]
-                            if isinstance(widget, tk.StringVar):
-                                widget.set(ext)
-                            else:
-                                widget.delete(0, tk.END)
-                                widget.insert(0, ext)
-                        elif remind_label == "Notes":
-                            notes_widget = self.text_fields.get("Notes")
-                            if notes_widget:
-                                notes_widget.insert(tk.END, "\n[Imported from OIR]\n")
-                        continue
-
-                    value = metadata_output.get(oir_key, "")
-                    if remind_label == "Imaging mode":
-                        if isinstance(value, list) and value:
-                            value = str(value[0])
-                        elif isinstance(value, list):
-                            value = ""
-                    elif isinstance(value, list):
-                        value = ", ".join(str(v) for v in value)
-
-                    widget = self.entries.get(remind_label)
-                    if widget is None:
-                        continue
-                    if isinstance(widget, tk.StringVar):
-                        widget.set(value)
-                    elif isinstance(widget, tk.Entry):
-                        widget.delete(0, tk.END)
-                        widget.insert(0, value)
-                    elif remind_label == "Notes" and remind_label in self.text_fields:
-                        self.text_fields[remind_label].insert(tk.END, value)
-
-                self.show_metadata_in_window(metadata_output)
-                self.last_metadata_output = metadata_output
-
-                messagebox.showinfo("Success", "Fields loaded from OIR metadata.")
-
-            except Exception as e:
-                messagebox.showerror("Error", f"Failed to extract OIR metadata:\n{e}")
-
-        elif ext in (".tif", ".tiff"):
-            try:
-                metadata_output, _ = extract_ometiff_metadata(path)
-
-                field_map = {
-                    "Experiment name": None,
-                    "Date and time": "Document Creation Date",
-                    "Microscope name": "System Name",
-                    "Objective": "Objective Model",
-                    "Immersion": "Objective Medium",
-                    "Imaging mode": "Acquisition Modes",
-                    "Channel info": "Channel Names",
-                    "Image format": None,
-                    "Notes": None,
-                }
-
-                for remind_label, ome_key in field_map.items():
-                    if ome_key is None:
-                        if remind_label == "Image format":
-                            widget = self.entries[remind_label]
-                            if isinstance(widget, tk.StringVar):
-                                widget.set(ext)
-                            else:
-                                widget.delete(0, tk.END)
-                                widget.insert(0, ext)
-                        elif remind_label == "Notes":
-                            notes_widget = self.text_fields.get("Notes")
-                            if notes_widget:
-                                notes_widget.insert(tk.END, "\n[Imported from OME-TIFF]\n")
-                        continue
-
-                    value = metadata_output.get(ome_key, "")
-                    if remind_label == "Imaging mode":
-                        if isinstance(value, list) and value:
-                            value = str(value[0])
-                        elif isinstance(value, list):
-                            value = ""
-                    elif isinstance(value, list):
-                        value = ", ".join(str(v) for v in value)
-
-                    widget = self.entries.get(remind_label)
-                    if widget is None:
-                        continue
-                    if isinstance(widget, tk.StringVar):
-                        widget.set(value)
-                    elif isinstance(widget, tk.Entry):
-                        widget.delete(0, tk.END)
-                        widget.insert(0, value)
-                    elif remind_label == "Notes" and remind_label in self.text_fields:
-                        self.text_fields[remind_label].insert(tk.END, value)
-
-                self.show_metadata_in_window(metadata_output)
-                self.last_metadata_output = metadata_output
-
-                messagebox.showinfo("Success", "Fields loaded from OME-TIFF metadata.")
-
-            except Exception as e:
-                messagebox.showerror("Error", f"Failed to extract OME-TIFF metadata:\n{e}")
-
-        else:
-            messagebox.showinfo("Not Supported", "Only CZI, LIF, ND2, OIR and OME-TIFF files are supported for metadata extraction at this time.")
+        self.show_metadata_in_window(metadata)
+        messagebox.showinfo("Success", f"Fields loaded from {format_name} metadata.")
 
     def show_metadata_in_window(self, metadata_dict):
+        """Make metadata_dict the extracted image metadata: it is shown in
+        the metadata box and written to the ReadMe and JSON exports. An empty
+        dict clears it."""
+        self.last_metadata_output = metadata_dict
         self.metadata_text.config(state="normal")
         self.metadata_text.delete("1.0", tk.END)
         for k, v in metadata_dict.items():
@@ -1143,38 +874,18 @@ class REMBIGUI:
             self.bold_font.configure(size=self.base_font_size)
 
     def export_as_json(self):
-        data = {}
-        for label, _, _ in self.fields:
-            if label in self.text_fields:
-                value = self.text_fields[label].get("1.0", tk.END).strip()
-                data[label] = value
-            elif isinstance(self.entries[label], tk.StringVar):
-                data[label] = self.entries[label].get()
-            else:
-                data[label] = self.entries[label].get()
-            if label in self.extra_fields:
-                data[f"{label} (Other)"] = self.extra_fields[label].get()
+        data = dict(self.field_values())
 
         # Add the Filename Key (keyword -> group/treatment) if any rows are filled
         condition_pairs = self.get_condition_rows()
         if condition_pairs:
             data["Filename Key"] = [{"keyword": k, "group": g} for k, g in condition_pairs]
 
-        # Add extracted metadata if available
-        if hasattr(self, "last_metadata_output") and self.last_metadata_output:
+        if self.last_metadata_output:
             data["Extracted Image Metadata"] = self.last_metadata_output
 
-        # Get experiment name for filename
-        experiment_name = self.entries["Experiment name"].get().strip()
-        if experiment_name:
-            # Clean filename (remove invalid characters)
-            clean_name = "".join(c for c in experiment_name if c.isalnum() or c in (' ', '-', '_')).rstrip()
-            default_filename = f"{clean_name}_metadata.json"
-        else:
-            default_filename = "metadata.json"
-
         save_path = filedialog.asksaveasfilename(defaultextension=".json",
-                                                 initialfile=default_filename,  # <-- Use dynamic filename
+                                                 initialfile=self.default_filename("metadata.json"),
                                                  filetypes=[("JSON files", "*.json")],
                                                  title="Save as JSON")
         if not save_path:
