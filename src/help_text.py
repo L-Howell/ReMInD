@@ -72,8 +72,8 @@ This tool uses several open-source libraries for metadata extraction:
 	• pylibCZIrw by ZEISS - For reading Zeiss CZI files
 		  https://github.com/ZEISS/pylibczirw
 
-	• readlif by Nimesh Khadka - For reading Leica LIF files
-		  https://github.com/nimne/readlif
+	• liffile by Christoph Gohlke - For reading Leica LIF files
+		  https://github.com/cgohlke/liffile
 
 	• nd2 by Talley Lambert - For reading Nikon ND2 files
 		  https://github.com/tlambert03/nd2

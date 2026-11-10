@@ -71,7 +71,7 @@ To update a record later, open it with <kbd>Load ReadMe.txt</kbd>. The
 | Format | Microscopes | Read with |
 |---|---|---|
 | `.czi` | Zeiss | [pylibCZIrw](https://github.com/ZEISS/pylibczirw) |
-| `.lif` | Leica | [readlif](https://github.com/Arcadia-Science/readlif) |
+| `.lif` | Leica | [liffile](https://github.com/cgohlke/liffile) |
 | `.nd2` | Nikon | [nd2](https://github.com/tlambert03/nd2) |
 | `.oir` | Evident / Olympus | [oirfile](https://github.com/cgohlke/oirfile) |
 | `.ome.tif` | Any that writes OME-TIFF | [ome-types](https://github.com/tlambert03/ome-types) |

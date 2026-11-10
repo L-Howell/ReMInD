@@ -5,7 +5,7 @@ import xml.etree.ElementTree as ET
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from metadata_extractors.lif_metadata import _image_elements, _image_metadata
+from metadata_extractors.lif_metadata import _image_metadata
 
 # Two images in one project, in the layout LAS X writes, cut down to the
 # parts the extractor reads.
@@ -56,7 +56,8 @@ class LifTest(unittest.TestCase):
     def test_each_image_reports_its_own_settings(self):
         # Values used to be looked up across the whole file, so every image
         # was given the first image's objective and all images' channels.
-        overview, stack = [_image_metadata(e) for e in _image_elements(ET.fromstring(PROJECT))]
+        overview, stack = [_image_metadata(e) for e in ET.fromstring(PROJECT).iter("Element")
+                           if e.find("./Data/Image") is not None]
 
         self.assertEqual(overview["Objective Model"], "HC PL APO 20x/0.75 IMM")
         # The refractive index is not taken as proof of the medium used.

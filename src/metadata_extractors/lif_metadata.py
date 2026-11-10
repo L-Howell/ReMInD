@@ -1,5 +1,5 @@
 """
-Extract metadata from Leica LIF files using the readlif library.
+Extract metadata from Leica LIF files using the liffile library.
 
 A LIF file is a container: it can hold many images, each acquired with its
 own objective, channels and scan settings. Every value is therefore read
@@ -12,7 +12,7 @@ LAS AF. Values that an image does not record are reported as "N/A".
 
 import datetime
 
-from readlif.reader import LifFile
+from liffile import LifFile
 
 try:
     from ._common import immersion_term, imaging_mode_term
@@ -22,15 +22,6 @@ except ImportError:  # allow running as a standalone script
 
 # DimID values used by Leica for the spatial and time axes.
 _AXES = {"1": "X", "2": "Y", "3": "Z", "4": "T"}
-
-
-def _image_elements(node):
-    """Yield the XML element of every image in the file, in project order.
-    Images can be nested inside folders and inside other images."""
-    for element in node.findall("./Children/Element") or node.findall("./Element"):
-        if element.find("./Data/Image") is not None:
-            yield element
-        yield from _image_elements(element)
 
 
 def _number(text, decimals=3):
@@ -43,27 +34,18 @@ def _number(text, decimals=3):
     return int(value) if value.is_integer() else value
 
 
-def _creation_date(image):
+def _local_time(timestamps):
     """
-    Return the time of the image's first frame as "YYYY-MM-DD HH:MM:SS" in
-    the time zone of this computer, or "N/A" if the image has no time stamps.
+    Return the first of an image's time stamps as "YYYY-MM-DD HH:MM:SS" in
+    the time zone of this computer, or "N/A" if there are none.
+
+    Args:
+        timestamps: the numpy array of UTC times liffile gives for an image,
+            or None.
     """
-    stamps = image.find("TimeStampList")
-    if stamps is None:
+    if timestamps is None or len(timestamps) == 0:
         return "N/A"
-    try:
-        if stamps.text and stamps.text.strip():
-            # LAS X: space-separated hexadecimal values.
-            ticks = int(stamps.text.split()[0], 16)
-        else:
-            # LAS AF: one element per stamp, the value split into two halves.
-            first = stamps.find("TimeStamp")
-            ticks = (int(first.get("HighInteger")) << 32) | int(first.get("LowInteger"))
-    except (AttributeError, TypeError, ValueError, IndexError):
-        return "N/A"
-    # The value is a Windows FILETIME: 100 ns steps since 1601-01-01 UTC.
-    utc = datetime.datetime(1601, 1, 1, tzinfo=datetime.timezone.utc) \
-        + datetime.timedelta(microseconds=ticks // 10)
+    utc = timestamps[0].astype("datetime64[s]").item().replace(tzinfo=datetime.timezone.utc)
     return utc.astimezone().strftime("%Y-%m-%d %H:%M:%S")
 
 
@@ -196,8 +178,16 @@ def _channels(image, settings):
     return names, dyes, excitation
 
 
-def _image_metadata(element):
-    """Build the metadata dict for one image element."""
+def _image_metadata(element, name=None, timestamps=None):
+    """
+    Build the metadata dict for one image.
+
+    Args:
+        element: the image's XML element (liffile's LifImage.xml_element).
+        name: the image's name, including any folders it is in. Defaults to
+            the name in the XML.
+        timestamps: the image's time stamps, for the acquisition date.
+    """
     image = element.find("./Data/Image")
     attachments = {a.get("Name"): a for a in image.findall("Attachment")}
     if "HardwareSetting" in attachments:
@@ -219,8 +209,8 @@ def _image_metadata(element):
     laser_lines = list(dict.fromkeys(line for lasers in settings.get("lasers by scan", []) for line in lasers))
     dimensions = _dimensions(image)
     metadata = {
-        "Image Name": element.get("Name") or "N/A",
-        "Document Creation Date": _creation_date(image),
+        "Image Name": name or element.get("Name") or "N/A",
+        "Document Creation Date": _local_time(timestamps),
         "Application Version": setting("software"),
         "System Name": setting("system"),
         "Microscope Model": setting("microscope"),
@@ -270,9 +260,10 @@ def extract_lif_metadata(lif_path):
 
     Raises:
         ValueError: if the file contains no images.
-        Exception: whatever readlif raises for a file it cannot read.
+        Exception: whatever liffile raises for a file it cannot read.
     """
-    per_image = [_image_metadata(element) for element in _image_elements(LifFile(lif_path).xml_root)]
+    with LifFile(lif_path) as lif:
+        per_image = [_image_metadata(image.xml_element, image.path, image.timestamps) for image in lif.images]
     if not per_image:
         raise ValueError("No images found in LIF file.")
     return per_image
