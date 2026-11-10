@@ -1,6 +1,2 @@
-pyinstaller>=5.0
-pylibCZIrw>=4.0.0
-readlif>=0.6.4
-nd2>=0.5.0
-oirfile>=2024.1.1
-ome-types>=0.5.0
+-r ../requirements.txt
+pyinstaller==6.22.3

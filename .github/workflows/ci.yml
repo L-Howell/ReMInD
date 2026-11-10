@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            build_scripts/requirements_build.txt
+
+      - name: Install requirements
+        run: pip install -r build_scripts/requirements_build.txt
+
+      - name: Run tests
+        run: python -m unittest discover -s tests -v
+
+      # The same script a developer runs, so the two cannot drift apart.
+      - name: Build executable
+        working-directory: build_scripts
+        shell: cmd
+        run: build.bat
+
+      # A windowed program has no console, so a library missing from the
+      # build would otherwise only show up as a window that never opens.
+      - name: Check the executable starts and can load every library
+        shell: pwsh
+        run: |
+          $process = Start-Process dist\ReMInD.exe -ArgumentList "--check", "check.log" -Wait -PassThru
+          Get-Content check.log
+          exit $process.ExitCode
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ReMInD-windows
+          path: dist/ReMInD.exe
