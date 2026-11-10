@@ -46,7 +46,7 @@ python src/remind.py
 - **Purpose**: Main application window and logic
 - **Key Methods**:
   - `__init__()` - Window setup and initialization
-  - `build_form()` - Creates the GUI form
+  - `build_toolbar()` / `build_form()` - Create the toolbar and the form
   - `load_image_file()` - Reads an image file and fills the form from it
   - `parse_readme_file()` / `load_template()` - Load a ReadMe.txt or template
   - `generate_readme()` - Creates ReadMe.txt files
@@ -71,17 +71,15 @@ python src/remind.py
 
 ### Key Features Implementation
 
-#### Responsive Design
-```python
-# Screen size detection and window sizing
-screen_width = self.root.winfo_screenwidth()
-if screen_width >= 1920:
-    window_width = 900
-elif screen_width >= 1366:
-    window_width = 750
-else:
-    window_width = 650
-```
+#### Window Layout
+- `build_toolbar()` - the action buttons, fixed at the top of the window
+- `setup_scrollable_window()` - a canvas holding the form, which scrolls
+  vertically and is kept at the width of the window
+- `build_form()` - one `ttk.LabelFrame` per section. `SECTION_HEADINGS` maps
+  the first field of each section to its heading
+
+All widgets are ttk widgets styled by `sv-ttk`, except the text boxes and the
+canvas, which `toggle_dark_mode()` colours to match.
 
 #### Metadata Extraction Pipeline
 Each supported file extension has one entry in `IMAGE_READERS` in `remind.py`:
@@ -245,7 +243,8 @@ The single executable is written to the `dist/` directory.
 - [ ] JSON export
 - [ ] File loading and form population
 - [ ] Help dialog displays
-- [ ] Responsive design on different screen sizes
+- [ ] Resizing: form follows the window width, mouse wheel scrolls over any field
+- [ ] Dark and light mode, including the title bar
 
 ### Automated Tests
 ```bash

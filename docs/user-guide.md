@@ -13,9 +13,10 @@ ReMInD looks for template files (names ending in `_ReadME_template.txt`) in the 
 Keep one template per computer. If there are several, the first in alphabetical order is used.
 
 ### Interface Layout
-- **Form fields** - Left column labels, right column inputs
-- **Metadata panel** - Shows extracted image metadata
-- **Control buttons** - Generate, Load, Clear, Help, Export as JSON
+- **Toolbar** - Load Fields from Image File, Load ReadMe.txt, Generate ReadMe.txt, Export as JSON, Clear Form, Help and the Dark/Light switch. It stays visible while the form scrolls
+- **Form fields** - Grouped under Experiment, Sample, Microscope and acquisition, and Notes
+- **Filename Key** - Table linking file name keywords to groups
+- **Extracted Image Metadata** - Shows the metadata read from an image file
 
 ## Core Features
 

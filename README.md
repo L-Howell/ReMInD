@@ -45,9 +45,8 @@ The tool is especially useful for users of light microscopy and other imaging sy
 - **Round-trip compatibility** - reload metadata when opening saved ReadME files
 
 ### Adaptive Interface
-- **Responsive design** - adapts to different screen resolutions (1024x768+)
-- **Scrollable interface** for low-resolution displays
-- **Two-row button layout** for narrow screens
+- **Resizable window** - the form follows the window width and scrolls vertically
+- **Fixed toolbar** - the action buttons stay visible while the form scrolls
 - **Dark/light mode toggle** with Windows title bar theming
 
 ---
