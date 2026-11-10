@@ -267,7 +267,9 @@ When reporting bugs, include:
 
 ## Release Process
 
-1. **Version Update**: Change `VERSION` and `RELEASE_DATE` in `src/version.py`.
+1. **Version Update**: Change `VERSION` and `RELEASE_DATE` in `src/version.py`,
+   following [EffVer](https://jacobtomlinson.dev/effver/) (macro.meso.micro, by the
+   effort a user needs to move to the new version).
    It is the only place the version is written; the window title, the ReadMe
    header and the Help text read it from there
 2. **Checks**: Push and wait for the CI run to pass (tests, build, and the
