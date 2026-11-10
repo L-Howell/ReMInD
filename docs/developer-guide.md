@@ -276,8 +276,17 @@ When reporting bugs, include:
    check that the built executable starts)
 3. **Manual testing**: Run the manual test checklist on the executable from
    the CI run's artifacts
-4. **GitHub Release**: Create a release and attach that executable
-5. **Announcement**: Notify users of new version
+4. **Merge** to `main`
+5. **Release**: Tag that commit with the version and push the tag:
+   ```bash
+   git tag v4.0.0
+   git push origin v4.0.0
+   ```
+   CI builds and checks the executable again and, because of the tag,
+   publishes a GitHub release with `ReMInD.exe` attached and notes generated
+   from the commits since the last release. The tag must match `VERSION`,
+   or the release step fails
+6. **Announcement**: Notify users of new version
 
 ### Continuous integration
 `.github/workflows/ci.yml` runs on every push, on Windows. It installs the
@@ -286,7 +295,8 @@ runs `ReMInD.exe --check check.log`. `--check` imports the library of every
 file format and builds the window, then exits with code 1 if anything failed
 and writes the reasons to the log file. A windowed program has no console, so
 without this a library missing from the build would only show up as a window
-that never opens.
+that never opens. When the push is a version tag (`v...`), a final step
+publishes the release.
 
 ### Pinned versions
 `requirements.txt` gives exact versions so that rebuilding later produces
