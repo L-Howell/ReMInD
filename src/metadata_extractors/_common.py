@@ -1,16 +1,66 @@
 """
-Shared helpers for metadata extractors.
+Helpers shared by the metadata extractors and the form.
+
+The extractors use parse_xml to read vendor XML, and immersion_term,
+imaging_mode_term and immersion_from_refractive_index to report values in
+the form's terms. remind.py uses combine_image_metadata to describe a file
+that holds several images.
 """
 
 import xml.etree.ElementTree as ET
 from collections import Counter
 
+# Image files say only "oil", never which oil, so the form gets plain "Oil"
+# and the user picks Oil-23 or Oil-37 if they know.
+_IMMERSION_TERMS = {
+    "OIL":          "Oil",
+    "WATER":        "Water",
+    "W":            "Water",
+    "WATERDIPPING": "Water",
+    "AIR":          "Air",
+    "DRY":          "Air",
+    "GLYCEROL":     "Glycerol",
+    "GLYC":         "Glycerol",
+    "GLYCERIN":     "Glycerol",
+    "GLYCERINE":    "Glycerol",
+    "SILICONE":     "Silicone",
+    # A multi-immersion objective works with several media, and the file
+    # does not reliably say which was used.
+    "IMM":          "Multi-immersion",
+}
+
+# Keys are OME acquisition mode names, which CZI also uses, and the short
+# device names in OIR and LIF files. Values are the form's terms.
+_IMAGING_MODE_TERMS = {
+    "WIDEFIELD":                       "Widefield",
+    "CAMERA":                          "Widefield",
+    "LASERSCANNINGCONFOCALMICROSCOPY": "Confocal",
+    "LASERSCANNINGMICROSCOPY":         "Confocal",
+    "LSM":                             "Confocal",
+    "CONFOCAL":                        "Confocal",
+    "SLITSCANCONFOCAL":                "Confocal",
+    "SPINNINGDISKCONFOCAL":            "Spinning Disc Confocal",
+    "MULTIPHOTONMICROSCOPY":           "2Photon",
+    "TOTALINTERNALREFLECTION":         "TIRF",
+    "TIRF":                            "TIRF",
+    "STRUCTUREDILLUMINATION":          "Widefield",
+    "FLUORESCENCELIFETIME":            "FLIM",
+    "STED":                            "STED",
+}
+
 
 def parse_xml(text):
     """
-    Parse XML text and return its root element with the namespaces removed
-    from every tag and attribute name, e.g. "{http://...}Pixels" becomes
-    "Pixels". Elements can then be found by their plain names.
+    Parse XML text and remove the namespaces from every tag and attribute.
+
+    For example, "{http://...}Pixels" becomes "Pixels", so elements can be
+    found by their plain names.
+
+    Args:
+        text (str): the XML text.
+
+    Returns:
+        xml.etree.ElementTree.Element: the root element.
 
     Raises:
         xml.etree.ElementTree.ParseError: if the text is not well-formed XML.
@@ -20,13 +70,6 @@ def parse_xml(text):
         element.tag = element.tag.split("}", 1)[-1]
         element.attrib = {name.split("}", 1)[-1]: value for name, value in element.attrib.items()}
     return root
-
-
-def _display(value):
-    """Return a metadata value as text, joining lists with ", "."""
-    if isinstance(value, (list, tuple)):
-        return ", ".join(str(item) for item in value)
-    return str(value)
 
 
 def combine_image_metadata(per_image, name_key="Image Name"):
@@ -39,19 +82,17 @@ def combine_image_metadata(per_image, name_key="Image Name"):
 
     Args:
         per_image (list[dict]): one metadata dict per image.
-        name_key (str): the key holding each image's name.
+        name_key (str): the key that holds each image's name.
 
     Returns:
-        dict: for each key, in first-seen order:
-          - the value itself when every image has the same one (lists stay
-            lists);
-          - otherwise text listing each distinct value, most common first,
-            with the images it applies to: their names for up to three
-            images, a count for more. For example
-            "63x/1.40 OIL [14 images]; 10x/0.40 DRY [Overview]". Beyond four
-            distinct values the rest are summarised as "and N more values".
-        The image names are not combined this way: with more than one image
-        the result has "Image Count" and "Image Names" in place of name_key.
+        dict: one entry per key, in the order the keys first appear. When
+        every image has the same value, the entry is that value, and lists
+        stay lists. Otherwise it is text that lists each distinct value, most
+        common first, with the images it applies to. Up to three images are
+        named; more are counted. For example:
+        "63x/1.40 OIL [14 images]; 10x/0.40 DRY [Overview]". Only four values
+        are listed; the rest are counted as "and N more values". With more
+        than one image, "Image Count" and "Image Names" replace name_key.
         An empty list gives an empty dict.
     """
     if not per_image:
@@ -92,15 +133,55 @@ def combine_image_metadata(per_image, name_key="Image Name"):
     return combined
 
 
+def immersion_term(raw):
+    """
+    Translate an immersion medium from an image file into the form's term.
+
+    Args:
+        raw (str): the medium as the file writes it, e.g. "OIL", "Dry" or
+            "WaterDipping". Matching ignores case, spaces, underscores and
+            hyphens.
+
+    Returns:
+        str: the form's term, e.g. "Oil", "Air" or "Water". A medium that is
+        not recognised, including "N/A" and "", is returned unchanged.
+    """
+    return _IMMERSION_TERMS.get(_lookup_key(raw), raw)
+
+
+def imaging_mode_term(raw):
+    """
+    Translate an acquisition mode from an image file into the form's term.
+
+    Args:
+        raw (str): the mode as the file writes it, e.g.
+            "LaserScanningConfocalMicroscopy", "LSM" or
+            "SPINNING_DISK_CONFOCAL". Matching ignores case, spaces,
+            underscores and hyphens.
+
+    Returns:
+        str: an "Imaging mode" option such as "Confocal" or "Widefield", or a
+        "Specialist modality" option such as "STED", "TIRF" or "FLIM". A
+        mode that is not recognised, including "N/A" and "", is returned
+        unchanged.
+    """
+    return _IMAGING_MODE_TERMS.get(_lookup_key(raw), raw)
+
+
 def immersion_from_refractive_index(refractive_index):
     """
-    Return the immersion medium implied by a refractive index, for files
-    that record the index but do not name the medium.
+    Return the immersion medium that a refractive index implies.
 
-    The index of each common medium is matched with a small margin: air
-    (1.0), water (1.33), silicone oil (1.40), glycerol (1.47) and immersion
-    oil (1.515). Returns "" for any other index and for anything that is not
-    a number.
+    This is for files that record the index but do not name the medium. Each
+    common medium's index is matched with a small margin: air (1.0), water
+    (1.33), silicone oil (1.40), glycerol (1.47) and immersion oil (1.515).
+
+    Args:
+        refractive_index (float | str): the index from the file.
+
+    Returns:
+        str: "Air", "Water", "Silicone", "Glycerol" or "Oil". "" for any other
+        index, or for a value that is not a number.
     """
     try:
         ri = float(refractive_index)
@@ -113,80 +194,13 @@ def immersion_from_refractive_index(refractive_index):
     return ""
 
 
-# Image files say only "oil", never which oil, so the form gets plain "Oil"
-# and the user picks Oil-23 or Oil-37 if they know.
-_IMMERSION_TERMS = {
-    "OIL":          "Oil",
-    "WATER":        "Water",
-    "W":            "Water",
-    "WATERDIPPING": "Water",
-    "AIR":          "Air",
-    "DRY":          "Air",
-    "GLYCEROL":     "Glycerol",
-    "GLYC":         "Glycerol",
-    "GLYCERIN":     "Glycerol",
-    "GLYCERINE":    "Glycerol",
-    "SILICONE":     "Silicone",
-    # A multi-immersion objective works with several media, and the file
-    # does not reliably say which was used.
-    "IMM":          "Multi-immersion",
-}
-
-# Keys are OME acquisition-mode names (also used by CZI) plus the short device
-# names found in OIR and LIF files. Values are the terms used by the ReMInD form.
-_IMAGING_MODE_TERMS = {
-    "WIDEFIELD":                       "Widefield",
-    "CAMERA":                          "Widefield",
-    "LASERSCANNINGCONFOCALMICROSCOPY": "Confocal",
-    "LASERSCANNINGMICROSCOPY":         "Confocal",
-    "LSM":                             "Confocal",
-    "CONFOCAL":                        "Confocal",
-    "SLITSCANCONFOCAL":                "Confocal",
-    "SPINNINGDISKCONFOCAL":            "Spinning Disc Confocal",
-    "MULTIPHOTONMICROSCOPY":           "2Photon",
-    "TOTALINTERNALREFLECTION":         "TIRF",
-    "TIRF":                            "TIRF",
-    "STRUCTUREDILLUMINATION":          "Widefield",
-    "FLUORESCENCELIFETIME":            "FLIM",
-    "STED":                            "STED",
-}
+def _display(value):
+    """Return a metadata value as text, joining lists with ", "."""
+    if isinstance(value, (list, tuple)):
+        return ", ".join(str(item) for item in value)
+    return str(value)
 
 
 def _lookup_key(value):
+    """Return value in upper case without spaces, underscores or hyphens, for matching."""
     return str(value).upper().replace("_", "").replace(" ", "").replace("-", "")
-
-
-def immersion_term(raw):
-    """
-    Translate an immersion medium as written in an image file into the term
-    used by the ReMInD form.
-
-    Args:
-        raw: the medium from the file, e.g. "OIL", "Dry", "WaterDipping".
-            Matching ignores case, spaces, underscores and hyphens.
-
-    Returns:
-        The form's term (e.g. "Oil", "Air", "Water") when the medium is
-        recognised. Any other value, including "N/A" and "", is returned
-        unchanged.
-    """
-    return _IMMERSION_TERMS.get(_lookup_key(raw), raw)
-
-
-def imaging_mode_term(raw):
-    """
-    Translate an acquisition mode as written in an image file into the term
-    used by the ReMInD form.
-
-    Args:
-        raw: the mode from the file, e.g. "LaserScanningConfocalMicroscopy",
-            "LSM", "SPINNING_DISK_CONFOCAL". Matching ignores case, spaces,
-            underscores and hyphens.
-
-    Returns:
-        The form's term when the mode is recognised: an "Imaging mode"
-        option (e.g. "Confocal", "Widefield") or a "Specialist modality"
-        option ("STED", "TIRF", "FLIM"). Any other value, including "N/A"
-        and "", is returned unchanged.
-    """
-    return _IMAGING_MODE_TERMS.get(_lookup_key(raw), raw)
