@@ -1,10 +1,13 @@
 """
-The text of the Help window, one paragraph per line.
+The text of the Help window, which remind.py formats and shows.
 
-The start of a line says how it is shown: "# " is a section heading, "- " a
-bullet, "1. " (any number) a numbered step, and "  " a plain paragraph
-indented under its heading. The first line is the title. {version} and
-{date} are filled in from version.py.
+The text has one paragraph per line. The first line is the title. The start
+of each other line sets its format:
+  "# "   a section heading
+  "- "   a bullet point
+  "1. "  a numbered step (any number)
+  "  "   a plain paragraph, indented under its heading
+{version} and {date} are filled in from version.py.
 """
 
 HELP_TEXT = """\
