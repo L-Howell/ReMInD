@@ -29,8 +29,8 @@ Plane #2:
 
 class Nd2Test(unittest.TestCase):
     def test_laser_lines_switched_on_are_read_per_channel(self):
-        # The nd2 library reports no excitation wavelength for laser systems;
-        # this text is the only place the file records which line was used.
+        # The nd2 library reports no excitation wavelength for laser systems.
+        # This text is the only place the file records which line was used.
         self.assertEqual(_lines_on(DESCRIPTION), [["488"], ["561"]])
 
     def test_day_and_month_order_is_settled_by_the_julian_day(self):
