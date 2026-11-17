@@ -1,6 +1,12 @@
 """
 ReMInD - Recommended Metadata Interface for Documentation
 
+The ReMInD window, and the program's entry point. The window is a form for
+recording an imaging experiment's metadata, which is saved as a ReadMe.txt
+beside the raw data. It fills the form from image files with the
+metadata_extractors package, saves and loads with readme_io, and takes its
+look from theme.
+
 Copyright (C) 2025  Nicholas Condon (IMB Microscopy, The University of Queensland)
 Copyright (C) 2025-2026  Liam Howell (Sydney Microscopy and Microanalysis,
                                       The University of Sydney)
@@ -37,7 +43,7 @@ APP_NAME = "ReMInD"
 APP_AUTHOR = "Nicholas Condon, IMB Microscopy, The University of Queensland, Brisbane Australia; Liam Howell, Sydney Microscopy and Microanalysis, The University of Sydney, Sydney Australia"
 
 # (label, dropdown options or "" for a text box, tooltip). The dropdowns also
-# accept typed text, so the options are suggestions rather than limits.
+# accept typed text, so the options are suggestions, not limits.
 FORM_FIELDS = [
     ("Experiment name", "", "Title of the experiment, e.g. Drug screen, plate 2"),
     ("Storage Location", "", "Where the raw data is stored, e.g. a data repository / shared drive or project name"),
@@ -113,7 +119,7 @@ def _read_ome_tiff(path):
     return extract_ometiff_metadata(path)
 
 
-# File extension -> (format name, function returning one metadata dict per
+# File extension -> (format name, function that returns one metadata dict per
 # image in a file).
 IMAGE_READERS = {
     ".czi":  ("CZI", _read_czi),
@@ -125,107 +131,14 @@ IMAGE_READERS = {
 }
 
 
-def resource_path(name):
-    """Return the path of a file shipped with the program: inside the
-    unpacked executable when built, at the top of the repository otherwise."""
-    return os.path.join(getattr(sys, "_MEIPASS", os.path.dirname(current_dir)), name)
-
-
-def application_folder():
-    """
-    Return the folder that holds ReMInD: the folder of ReMInD.exe for a built
-    executable, or the folder of this file when run from source.
-
-    Templates are looked up here rather than in the working directory, which
-    is somewhere else when the program is started from a shortcut.
-    """
-    if getattr(sys, "frozen", False):
-        return os.path.dirname(sys.executable)
-    return current_dir
-
-
-def find_templates(folder):
-    return sorted(glob.glob(os.path.join(glob.escape(folder), "*_ReadME_template.txt")))
-
-
-class HintEntry(ttk.Entry):
-    """
-    A text field that shows a grey example while it is empty and does not
-    have the keyboard focus. The example is display only: get() returns ""
-    while it is shown.
-    """
-
-    def __init__(self, parent, hint, **options):
-        super().__init__(parent, **options)
-        self.hint = hint
-        self.showing_hint = False
-        self.bind("<FocusIn>", lambda event: self._hide_hint())
-        self.bind("<FocusOut>", lambda event: self._show_hint())
-        self._show_hint()
-
-    def _show_hint(self):
-        if not self.showing_hint and not super().get():
-            self.showing_hint = True
-            super().insert(0, self.hint)
-            self.configure(foreground=HINT_COLOUR)
-
-    def _hide_hint(self):
-        if self.showing_hint:
-            self.showing_hint = False
-            super().delete(0, tk.END)
-            self.configure(foreground="")
-
-    def get(self):
-        return "" if self.showing_hint else super().get()
-
-    def delete(self, first, last=None):
-        self._hide_hint()
-        super().delete(first, last)
-
-    def insert(self, index, text):
-        self._hide_hint()
-        super().insert(index, text)
-        if self.focus_get() is not self:
-            self._show_hint()
-
-
-def field_hint(tooltip_text):
-    """Return the example to show inside an empty field: the "e.g." part of
-    its tooltip, or "" if the tooltip gives no example."""
-    position = tooltip_text.find("e.g.")
-    return tooltip_text[position:].replace("\n", " ") if position >= 0 else ""
-
-
-class ToolTip:
-    def __init__(self, widget, text):
-        self.widget = widget
-        self.text = text
-        self.tooltip = None
-        self.widget.bind("<Enter>", self.show)
-        self.widget.bind("<Leave>", self.hide)
-
-    def show(self, event=None):
-        if self.tooltip or not self.text:
-            return
-        x = self.widget.winfo_rootx() + 25
-        # Just below a one-line field; tall text boxes get it near their top.
-        y = self.widget.winfo_rooty() + min(self.widget.winfo_height(), 30) + 2
-        self.tooltip = tk.Toplevel(self.widget)
-        self.tooltip.wm_overrideredirect(True)
-        ttk.Label(self.tooltip, text=self.text, justify="left",
-                  relief="solid", borderwidth=1, padding=(4, 2)).pack()
-        # Keep the tooltip on screen for widgets near the right edge.
-        self.tooltip.update_idletasks()
-        x = max(0, min(x, self.widget.winfo_screenwidth() - self.tooltip.winfo_reqwidth()))
-        self.tooltip.geometry(f"+{x}+{y}")
-
-    def hide(self, event=None):
-        if self.tooltip:
-            self.tooltip.destroy()
-            self.tooltip = None
-
-
 class RemindApp:
+    """
+    The ReMInD window: the form, its toolbar and the action behind each button.
+
+    Args:
+        root (tkinter.Tk): the window to build the form in.
+    """
+
     def __init__(self, root):
         self.root = root
         self.root.title(f"Recommended Metadata Interface for Documentation - {APP_NAME} v{VERSION}")
@@ -251,8 +164,7 @@ class RemindApp:
         self.dropdowns = []
         self.filled_from_image = set()
         self.last_metadata_output = {}
-        # Content of the template loaded at startup, if any. Clear Form
-        # returns to these values.
+        # Clear Form returns to the content of the template loaded at startup.
         self.template_fields = {}
         self.template_filename_key = []
 
@@ -272,8 +184,7 @@ class RemindApp:
         self.root.after(200, self.load_startup_template)
 
     def build_toolbar(self):
-        """Create the row of action buttons, which stays visible while the
-        form below it scrolls."""
+        """Create the toolbar and status line, which stay in place while the form scrolls."""
         self.toolbar = ttk.Frame(self.root, padding=(12, 10, 12, 6), style="Band.TFrame")
         self.toolbar.pack(side="top", fill="x")
 
@@ -287,8 +198,7 @@ class RemindApp:
         def gap():
             ttk.Frame(self.toolbar, width=14, style="Band.TFrame").pack(side="left")
 
-        # Left to right in the order they are used: bring information in,
-        # then save it.
+        # Left to right in the order of use: bring information in, then save it.
         button("Load Fields from Image File", self.load_fields_from_image,
                "Fill in fields from the metadata stored in a CZI, LIF, ND2, OIR or OME-TIFF file")
         button("Load ReadMe.txt", self.load_existing,
@@ -305,7 +215,7 @@ class RemindApp:
         self.dark_mode_btn = button("Dark", self.toggle_dark_mode, "Switch between dark and light", side="right")
         button("Help", self.show_help, "", side="right")
 
-        # Says what the last action did, since success is not shown in a popup.
+        # Success is not shown in a popup, so this line says what the last action did.
         self.status_label = ttk.Label(
             self.root, padding=(14, 0, 14, 10), style="Band.TLabel",
             text="Start by loading an image file, or fill in the form by hand.")
@@ -330,8 +240,8 @@ class RemindApp:
         def fit_form(event):
             two_columns = event.width >= TWO_COLUMN_WIDTH
             self.arrange_cards(two_columns)
-            # Very long fields are hard to read, so the form stops growing at
-            # a maximum width and is then centred.
+            # Very long fields are hard to read, so the form stops growing at a
+            # maximum width and is centred.
             width = min(event.width, 1500 if two_columns else 920)
             self.main_canvas.itemconfigure(frame_id, width=width)
             self.main_canvas.coords(frame_id, (event.width - width) // 2, 0)
@@ -343,37 +253,8 @@ class RemindApp:
         self.root.bind_all("<Button-4>", self.scroll_form)    # Linux
         self.root.bind_all("<Button-5>", self.scroll_form)    # Linux
 
-    def card(self, title, subtitle=""):
-        """Create a bordered panel with a heading for one section of the
-        form, and return it. arrange_cards puts it in place."""
-        frame = ttk.Frame(self.scrollable_frame, style="Card.TFrame", padding=(16, 12, 16, 16))
-        heading = ttk.Frame(frame)
-        heading.pack(fill="x", pady=(0, 10))
-        ttk.Label(heading, text=title, style="Heading.TLabel").pack(side="left")
-        if subtitle:
-            ttk.Label(heading, text=subtitle, style="Muted.TLabel").pack(side="left", padx=(10, 0))
-        self.cards[title] = frame
-        return frame
-
-    def arrange_cards(self, two_columns):
-        """Lay the cards out in two columns, or in one for a narrow window."""
-        if two_columns == self.two_columns:
-            return
-        self.two_columns = two_columns
-        parent = self.scrollable_frame
-        parent.grid_columnconfigure(0, weight=1, uniform="column")
-        parent.grid_columnconfigure(1, weight=1 if two_columns else 0, uniform="column" if two_columns else "")
-        for title, (row, column, rowspan, columnspan) in CARD_PLACES.items():
-            if two_columns:
-                self.cards[title].grid(row=row, column=column, rowspan=rowspan, columnspan=columnspan,
-                                       sticky="nsew", pady=(0, 12),
-                                       padx=(0, 12) if column == 0 and columnspan == 1 else 0)
-            else:
-                self.cards[title].grid(row=list(CARD_PLACES).index(title), column=0, rowspan=1, columnspan=1,
-                                       sticky="nsew", pady=(0, 12), padx=0)
-        self.version_label.grid(row=len(CARD_PLACES), column=0, columnspan=2 if two_columns else 1)
-
     def build_form(self):
+        """Create the form's sections, the Filename Key table and the metadata box."""
         self.cards = {}
         self.two_columns = None
         # The same label width in every section keeps the fields lined up.
@@ -442,11 +323,10 @@ class RemindApp:
                 self.entries[label] = widget
 
             ToolTip(widget, tooltip_text)
-            # Once the user types in a field its value is no longer the one
+            # Once the user types in a field, its value is no longer the one
             # read from the image.
             widget.bind("<Key>", lambda event, label=label: self.unmark_field(label), add="+")
 
-        # --- Filename Key: map a filename keyword to a biological group/treatment ---
         key_card = self.card("Filename Key", "Link a keyword in your file names to the group it identifies")
         self.condition_rows_frame = ttk.Frame(key_card)
         self.condition_rows_frame.pack(fill="x")
@@ -455,7 +335,6 @@ class RemindApp:
             ttk.Label(self.condition_rows_frame, text=heading, style="Muted.TLabel"
                       ).grid(row=0, column=column, sticky="w", padx=2, pady=(0, 2))
 
-        # Two empty rows by default; users add more with the + button.
         self.condition_rows = []
         self.add_condition_row()
         self.add_condition_row()
@@ -463,12 +342,11 @@ class RemindApp:
         ttk.Button(key_card, text="+ Add row", command=self.add_condition_row
                    ).pack(anchor="w", pady=(8, 0))
 
-        # --- Read-only display of the metadata extracted from an image file ---
         metadata_card = self.card("Extracted Image Metadata", "Read from the image file and saved with the ReadMe")
         self.metadata_text = tk.Text(metadata_card, height=12, wrap="word", state="disabled",
                                      font="TkTextFont", padx=8, pady=6, spacing1=2,
-                                     # Names in one column, values in the next;
-                                     # a long value wraps under its own start.
+                                     # Names in one column and values in the next, so
+                                     # that a long value wraps under its own start.
                                      tabs=("230",))
         self.metadata_text.tag_configure("value", lmargin2=230)
         scrollbar = ttk.Scrollbar(metadata_card, command=self.metadata_text.yview)
@@ -479,26 +357,40 @@ class RemindApp:
         self.version_label = ttk.Label(self.scrollable_frame, style="Page.TLabel",
                                        text=f"{APP_NAME} v{VERSION}  —  {RELEASE_DATE}")
 
-    def mark_saved(self):
-        """Record the form as it is now as having nothing to lose."""
-        self.saved_content = self.readme_text()
+    def card(self, title, subtitle=""):
+        """Create a titled panel for one section of the form, for arrange_cards to place."""
+        frame = ttk.Frame(self.scrollable_frame, style="Card.TFrame", padding=(16, 12, 16, 16))
+        heading = ttk.Frame(frame)
+        heading.pack(fill="x", pady=(0, 10))
+        ttk.Label(heading, text=title, style="Heading.TLabel").pack(side="left")
+        if subtitle:
+            ttk.Label(heading, text=subtitle, style="Muted.TLabel").pack(side="left", padx=(10, 0))
+        self.cards[title] = frame
+        return frame
 
-    def may_discard_changes(self):
-        """Return True if the form may be emptied or closed: either nothing
-        has changed since it was last saved, loaded or cleared, or the user
-        agrees to lose the changes."""
-        return self.readme_text() == self.saved_content or messagebox.askyesno(
-            "Discard changes?", "The form has changes that have not been saved. Discard them?")
-
-    def close_window(self):
-        if self.may_discard_changes():
-            self.root.destroy()
+    def arrange_cards(self, two_columns):
+        """Lay the cards out in two columns, or in one for a narrow window."""
+        if two_columns == self.two_columns:
+            return
+        self.two_columns = two_columns
+        parent = self.scrollable_frame
+        parent.grid_columnconfigure(0, weight=1, uniform="column")
+        parent.grid_columnconfigure(1, weight=1 if two_columns else 0, uniform="column" if two_columns else "")
+        for title, (row, column, rowspan, columnspan) in CARD_PLACES.items():
+            if two_columns:
+                self.cards[title].grid(row=row, column=column, rowspan=rowspan, columnspan=columnspan,
+                                       sticky="nsew", pady=(0, 12),
+                                       padx=(0, 12) if column == 0 and columnspan == 1 else 0)
+            else:
+                self.cards[title].grid(row=list(CARD_PLACES).index(title), column=0, rowspan=1, columnspan=1,
+                                       sticky="nsew", pady=(0, 12), padx=0)
+        self.version_label.grid(row=len(CARD_PLACES), column=0, columnspan=2 if two_columns else 1)
 
     def scroll_form(self, event):
         """Scroll the form in response to a mouse wheel event."""
         widget = event.widget
-        # Text boxes and open dropdown lists scroll their own content. Tk
-        # reports a dropdown list as a path string, not a widget object.
+        # Text boxes and open dropdown lists scroll their own content. Tk gives
+        # a dropdown list as a path string, not a widget object.
         if isinstance(widget, str) or widget.winfo_class() == "Text":
             return None
         if widget.winfo_toplevel() is not self.root:
@@ -513,6 +405,7 @@ class RemindApp:
         return "break"
 
     def field_values(self):
+        """Return (label, value) for every form field, in form order."""
         values = []
         for label, _, _ in self.fields:
             if label in self.text_fields:
@@ -522,9 +415,10 @@ class RemindApp:
         return values
 
     def set_field(self, label, value):
-        """Replace the content of a form field. Labels the form does not have
-        are ignored, so files written by other versions still load."""
+        """Replace the content of a form field."""
         widget = self.entries.get(label)
+        # Labels the form does not have are ignored, so that files written by
+        # other versions still load.
         if widget is None:
             return
         if label in self.text_fields:
@@ -536,15 +430,67 @@ class RemindApp:
             widget.delete(0, tk.END)
             widget.insert(0, value)
 
-    def default_filename(self, suffix):
-        """Return "<experiment name>_<suffix>", or just the suffix when the
-        experiment name is empty. Characters that are not letters, digits,
-        spaces, hyphens or underscores are dropped from the name."""
-        name = self.entries["Experiment name"].get().strip()
-        clean_name = "".join(c for c in name if c.isalnum() or c in (' ', '-', '_')).rstrip()
-        return f"{clean_name}_{suffix}" if clean_name else suffix
+    def fill_form(self, fields, filename_key, metadata):
+        """Set the given fields, and replace the Filename Key and the image metadata."""
+        for label, value in fields.items():
+            self.set_field(label, value)
+        self._reset_condition_rows(filename_key)
+        self.show_metadata_in_window(metadata)
+
+    def empty_form(self):
+        """Empty every field, the Filename Key and the image metadata."""
+        for label, _, _ in self.fields:
+            self.set_field(label, "")
+        self.mark_filled_from_image([])
+        self.fill_form({}, [], {})
+
+    def clear_form(self):
+        """Empty the form and put back the startup template's values, after asking about unsaved changes."""
+        if not self.may_discard_changes():
+            return
+        self.empty_form()
+        self.fill_form(self.template_fields, self.template_filename_key, {})
+        self.mark_saved()
+        self.status_label.configure(
+            text="Form cleared and template values put back." if self.template_fields else "Form cleared.")
+
+    def add_condition_row(self, keyword="", group=""):
+        """Add a row to the Filename Key table, and return its two fields."""
+        r = len(self.condition_rows) + 1  # row 0 holds the column headings
+        left = HintEntry(self.condition_rows_frame, "e.g. ctrl")
+        right = HintEntry(self.condition_rows_frame, "e.g. Vehicle control")
+        left.insert(0, keyword)
+        right.insert(0, group)
+        left.grid(row=r, column=0, sticky="ew", padx=2, pady=1)
+        right.grid(row=r, column=1, sticky="ew", padx=2, pady=1)
+        ToolTip(left, "Text that appears only in this group's file names, so it uniquely identifies the group, e.g. 'B' or 'ctrl'")
+        ToolTip(right, "What that group is, e.g. '10 uM Drug Y' or 'Vehicle control'")
+        self.condition_rows.append((left, right))
+        return left, right
+
+    def get_condition_rows(self):
+        """Return (keyword, group) for each Filename Key row that has a keyword."""
+        pairs = []
+        for left, right in self.condition_rows:
+            keyword = left.get().strip()
+            group = right.get().strip()
+            if keyword:
+                pairs.append((keyword, group))
+        return pairs
+
+    def _reset_condition_rows(self, rows=None):
+        """Replace the Filename Key rows with the given ones, keeping at least two rows."""
+        for left, right in self.condition_rows:
+            left.destroy()
+            right.destroy()
+        self.condition_rows = []
+        for keyword, group in (rows or []):
+            self.add_condition_row(keyword, group)
+        while len(self.condition_rows) < 2:
+            self.add_condition_row()
 
     def readme_text(self):
+        """Return the form as the text of a ReadMe.txt."""
         return format_readme(
             f"# Generated by {APP_NAME} v{VERSION} — {APP_AUTHOR}, {RELEASE_DATE}",
             self.field_values(),
@@ -552,7 +498,14 @@ class RemindApp:
             self.last_metadata_output,
         )
 
+    def default_filename(self, suffix):
+        """Return "<experiment name>_<suffix>" with unsafe characters removed, or just the suffix."""
+        name = self.entries["Experiment name"].get().strip()
+        clean_name = "".join(c for c in name if c.isalnum() or c in (' ', '-', '_')).rstrip()
+        return f"{clean_name}_{suffix}" if clean_name else suffix
+
     def generate_readme(self):
+        """Save the form as a ReadMe.txt where the user chooses."""
         save_path = filedialog.asksaveasfilename(defaultextension=".txt",
                                                  initialfile=self.default_filename("ReadME.txt"),
                                                  filetypes=[("Text files", "*.txt")],
@@ -567,98 +520,48 @@ class RemindApp:
         except Exception as e:
             messagebox.showerror("Error", f"Could not write file: {e}")
 
+    def export_as_json(self):
+        """Save the form and the image metadata as a JSON file where the user chooses."""
+        save_path = filedialog.asksaveasfilename(defaultextension=".json",
+                                                 initialfile=self.default_filename("metadata.json"),
+                                                 filetypes=[("JSON files", "*.json")],
+                                                 title="Save as JSON")
+        if not save_path:
+            return
+        try:
+            with open(save_path, "w", encoding="utf-8") as f:
+                f.write(format_json(self.field_values(), self.get_condition_rows(), self.last_metadata_output))
+            self.mark_saved()
+            self.status_label.configure(text=f"Saved {os.path.basename(save_path)}.")
+        except Exception as e:
+            messagebox.showerror("Error", f"Could not write JSON file: {e}")
+
+    def mark_saved(self):
+        """Record the form's current content as saved."""
+        self.saved_content = self.readme_text()
+
+    def may_discard_changes(self):
+        """Return True if the form has no unsaved changes, or the user agrees to discard them."""
+        return self.readme_text() == self.saved_content or messagebox.askyesno(
+            "Discard changes?", "The form has changes that have not been saved. Discard them?")
+
+    def close_window(self):
+        if self.may_discard_changes():
+            self.root.destroy()
+
     def load_existing(self):
+        """Ask for a ReadMe.txt or JSON export, and load it."""
         path = filedialog.askopenfilename(title="Select a ReadMe.txt or a JSON export",
                                           filetypes=[("ReadMe or JSON export", "*.txt *.json")])
         if path and self.may_discard_changes():
             self.load_readme_file(path)
 
-    def empty_form(self):
-        for label, _, _ in self.fields:
-            self.set_field(label, "")
-        self.mark_filled_from_image([])
-        self.fill_form({}, [], {})
-
-    def clear_form(self):
-        """Empty the form, then put back the template's values if a template
-        was loaded at startup. Asks first if there are unsaved changes."""
-        if not self.may_discard_changes():
-            return
-        self.empty_form()
-        self.fill_form(self.template_fields, self.template_filename_key, {})
-        self.mark_saved()
-        self.status_label.configure(
-            text="Form cleared and template values put back." if self.template_fields else "Form cleared.")
-
-    def add_condition_row(self, keyword="", group=""):
-        """Append a (filename keyword -> group/treatment) row to the Filename Key table."""
-        r = len(self.condition_rows) + 1  # row 0 holds the column headings
-        left = HintEntry(self.condition_rows_frame, "e.g. ctrl")
-        right = HintEntry(self.condition_rows_frame, "e.g. Vehicle control")
-        left.insert(0, keyword)
-        right.insert(0, group)
-        left.grid(row=r, column=0, sticky="ew", padx=2, pady=1)
-        right.grid(row=r, column=1, sticky="ew", padx=2, pady=1)
-        ToolTip(left, "Text that appears only in this group's file names, so it uniquely identifies the group, e.g. 'B' or 'ctrl'")
-        ToolTip(right, "What that group is, e.g. '10 uM Drug Y' or 'Vehicle control'")
-        self.condition_rows.append((left, right))
-        return left, right
-
-    def get_condition_rows(self):
-        """Return [(keyword, group), ...] for rows whose keyword is non-empty."""
-        pairs = []
-        for left, right in self.condition_rows:
-            keyword = left.get().strip()
-            group = right.get().strip()
-            if keyword:
-                pairs.append((keyword, group))
-        return pairs
-
-    def _reset_condition_rows(self, rows=None):
-        """Replace all Filename Key rows with the given list, padding to >= 2 rows."""
-        for left, right in self.condition_rows:
-            left.destroy()
-            right.destroy()
-        self.condition_rows = []
-        for keyword, group in (rows or []):
-            self.add_condition_row(keyword, group)
-        while len(self.condition_rows) < 2:
-            self.add_condition_row()
-
-    def read_readme_file(self, path):
-        """Return (fields, filename_key, metadata) from a ReadMe.txt, template
-        or JSON export, or None after showing a message if it cannot be read."""
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                return (parse_json if path.lower().endswith(".json") else parse_readme)(f.read())
-        except Exception as e:
-            messagebox.showerror("Error", f"Could not load file: {e}")
-            return None
-
-    def fill_form(self, fields, filename_key, metadata):
-        """
-        Put the content of a ReadMe.txt or template into the form.
-
-        Fields with a value replace what is in the form; fields that are
-        empty or absent are left as they are. The Filename Key and the
-        extracted image metadata are replaced, and emptied if there are none.
-        """
-        for label, value in fields.items():
-            self.set_field(label, value)
-        self._reset_condition_rows(filename_key)
-        self.show_metadata_in_window(metadata)
-
     def load_readme_file(self, path):
-        """
-        Replace the content of the form with that of a ReadMe.txt or JSON
-        export, including the template's values.
-
-        A file that cannot be read, or that holds nothing ReMInD recognises
-        (some other text file, say), shows a message and changes nothing.
-        """
+        """Replace the form's content, including template values, with a ReadMe.txt or JSON export."""
         content = self.read_readme_file(path)
         if content is None:
             return
+        # Some other text file holds no ReMInD fields, and must not empty the form.
         if not any(content):
             messagebox.showinfo("Nothing to load", f"{os.path.basename(path)} holds no ReMInD fields.")
             return
@@ -667,13 +570,22 @@ class RemindApp:
         self.mark_saved()
         self.status_label.configure(text=f"Loaded {os.path.basename(path)}.")
 
+    def read_readme_file(self, path):
+        """Return (fields, filename_key, metadata) from a ReadMe, template or JSON export, or None."""
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                return (parse_json if path.lower().endswith(".json") else parse_readme)(f.read())
+        except Exception as e:
+            messagebox.showerror("Error", f"Could not load file: {e}")
+            return None
+
     def load_template(self, path):
         """Load a template into the form and keep its content for Clear Form."""
         content = self.read_readme_file(path)
         if content is None:
             return
-        # The metadata is dropped: a template made by renaming a real ReadMe
-        # still carries that experiment's image metadata, which must not be
+        # The metadata is dropped. A template made by renaming a real ReadMe
+        # still holds that experiment's image metadata, which must not be
         # written into the ReadMe of every later experiment.
         self.template_fields, self.template_filename_key, _ = content
         self.fill_form(self.template_fields, self.template_filename_key, {})
@@ -682,45 +594,15 @@ class RemindApp:
             text=f"Fields pre-filled from this computer's template, {os.path.basename(path)}.")
 
     def load_startup_template(self):
-        """Load the template stored next to the program, if there is one.
-        With several, the first in alphabetical order is used."""
+        """Load the first template, by name, in the program's folder, if there is one."""
+        # Not the working directory, which is elsewhere when the program is
+        # started from a shortcut.
         templates = find_templates(application_folder())
         if templates:
             self.load_template(templates[0])
 
-    def show_help(self):
-        help_window = tk.Toplevel(self.root)
-        help_window.title("Help")
-        lines = HELP_TEXT.format(version=VERSION, date=RELEASE_DATE).splitlines()
-
-        # Tall enough to show the text without scrolling where the screen allows.
-        help_text = tk.Text(help_window, wrap="word", font=BODY_FONT, width=92, padx=18, pady=14,
-                            height=min(len(lines) + 14, self.root.winfo_screenheight() // 26),
-                            spacing1=2, spacing3=2, **{**self.text_colours(), "highlightthickness": 0})
-        scrollbar = ttk.Scrollbar(help_window, command=help_text.yview)
-        help_text.config(yscrollcommand=scrollbar.set)
-        scrollbar.pack(side="right", fill="y")
-        help_text.pack(side="left", expand=True, fill="both")
-
-        help_text.tag_configure("title", font=HEADING_FONT, spacing3=6)
-        help_text.tag_configure("heading", font=HEADING_FONT, spacing1=14, spacing3=4)
-        help_text.tag_configure("plain", lmargin1=14, lmargin2=14)
-        # The first line of a bullet or step starts at the marker and the
-        # lines it wraps onto line up with its text.
-        help_text.tag_configure("item", lmargin1=14, lmargin2=30)
-        help_text.insert("end", lines[0] + "\n", "title")
-        for line in lines[1:]:
-            if line.startswith("# "):
-                help_text.insert("end", line[2:] + "\n", "heading")
-            elif line.startswith("- "):
-                help_text.insert("end", "\u2022  " + line[2:] + "\n", "item")
-            elif line[:1].isdigit():
-                help_text.insert("end", line + "\n", "item")
-            else:
-                help_text.insert("end", line.strip() + "\n", "plain")
-        help_text.config(state="disabled")
-
     def load_fields_from_image(self):
+        """Ask for an image file, and fill the form from it."""
         filetypes = [
             ("Image files", "*.czi *.lif *.nd2 *.oir *.tif *.tiff"),
             ("All files", "*.*"),
@@ -733,20 +615,7 @@ class RemindApp:
             self.load_image_file(path)
 
     def load_image_file(self, path):
-        """
-        Fill the form from an image file's metadata and show the metadata.
-
-        A file can hold several images taken with different settings. Fields
-        on which they differ list each distinct value (see merge_form_fields
-        and combine_image_metadata).
-
-        Only fields the file has a value for are changed. The microscope name
-        is also left alone when the template supplied one, because the
-        facility's own name for the instrument is more useful than the model
-        name stored in the file (which still appears in the extracted
-        metadata). Unsupported file types and unreadable files show a message
-        and change nothing.
-        """
+        """Fill the form from an image file's metadata, and show the metadata."""
         ext = os.path.splitext(path)[1].lower()
         if ext not in IMAGE_READERS:
             messagebox.showinfo("Not Supported", "Only CZI, LIF, ND2, OIR and OME-TIFF files are supported for metadata extraction at this time.")
@@ -761,6 +630,9 @@ class RemindApp:
             messagebox.showerror("Error", f"Could not read the {format_name} file:\n{e}")
             return
 
+        # The facility's own name for the instrument, from the template, is more
+        # useful than the model name in the file. The model name still appears
+        # in the extracted metadata.
         if self.template_fields.get("Microscope name"):
             form_values.pop("Microscope name", None)
         for label, value in form_values.items():
@@ -774,9 +646,7 @@ class RemindApp:
                  "Check the highlighted fields.")
 
     def show_metadata_in_window(self, metadata_dict):
-        """Make metadata_dict the extracted image metadata: it is shown in
-        the metadata box and written to the ReadMe and JSON exports. An empty
-        dict clears it."""
+        """Set the image metadata that the box shows and the saved files include."""
         self.last_metadata_output = metadata_dict
         self.metadata_text.config(state="normal")
         self.metadata_text.delete("1.0", tk.END)
@@ -795,12 +665,24 @@ class RemindApp:
                 "hint")
         self.metadata_text.config(state="disabled")
 
+    def mark_filled_from_image(self, labels):
+        """Highlight the labels of the fields filled from an image, for the user to check."""
+        self.filled_from_image = set(labels)
+        for label, widget in self.field_labels.items():
+            widget.configure(foreground=self.colours["accent"] if label in self.filled_from_image else "")
+
+    def unmark_field(self, label):
+        """Stop showing a field as filled from an image file."""
+        if label in self.filled_from_image:
+            self.mark_filled_from_image(self.filled_from_image - {label})
+
     def toggle_dark_mode(self):
+        """Switch between the dark and light themes."""
         self.dark_mode = not self.dark_mode
         self.colours = apply_theme(self.root, "dark" if self.dark_mode else "light")
         self.dark_mode_btn.configure(text="Light" if self.dark_mode else "Dark")
 
-        # The widgets that are not ttk widgets are coloured here.
+        # ttk styles do not reach the widgets that are not ttk widgets.
         self.root.configure(bg=self.colours["page"])
         self.main_canvas.configure(bg=self.colours["page"])
         for text_widget in (*self.text_fields.values(), self.metadata_text):
@@ -816,30 +698,15 @@ class RemindApp:
         self.mark_filled_from_image(self.filled_from_image)
         self._apply_theme_to_titlebar()
 
-    def mark_filled_from_image(self, labels):
-        """Show the labels of the fields that were filled from an image file
-        in the accent colour, so the user knows which values to check."""
-        self.filled_from_image = set(labels)
-        for label, widget in self.field_labels.items():
-            widget.configure(foreground=self.colours["accent"] if label in self.filled_from_image else "")
-
-    def unmark_field(self, label):
-        """Stop showing a field as filled from an image file."""
-        if label in self.filled_from_image:
-            self.mark_filled_from_image(self.filled_from_image - {label})
-
     def text_colours(self):
-        """Return the options that make a tk.Text look like the fields of
-        the current theme."""
+        """Return the options that make a tk.Text match the current theme's fields."""
         return {"bg": self.colours["field"], "fg": self.colours["text"],
                 "insertbackground": self.colours["text"], "selectbackground": self.colours["accent"],
                 "selectforeground": self.colours["on accent"], "highlightbackground": self.colours["border"],
                 "highlightcolor": self.colours["accent"], "relief": "flat", "highlightthickness": 1}
 
     def _apply_theme_to_titlebar(self):
-        """Give the Windows title bar the dark or light style of the app
-        theme. Does nothing on other systems, or on Windows versions that
-        have no dark title bar."""
+        """Match the Windows title bar to the theme, where Windows has a dark title bar."""
         if sys.platform != "win32":
             return
         try:
@@ -855,29 +722,145 @@ class RemindApp:
         except Exception:
             pass
 
-    def export_as_json(self):
-        save_path = filedialog.asksaveasfilename(defaultextension=".json",
-                                                 initialfile=self.default_filename("metadata.json"),
-                                                 filetypes=[("JSON files", "*.json")],
-                                                 title="Save as JSON")
-        if not save_path:
+    def show_help(self):
+        """Open the Help window."""
+        help_window = tk.Toplevel(self.root)
+        help_window.title("Help")
+        lines = HELP_TEXT.format(version=VERSION, date=RELEASE_DATE).splitlines()
+
+        # Tall enough to show the text without scrolling where the screen allows.
+        help_text = tk.Text(help_window, wrap="word", font=BODY_FONT, width=92, padx=18, pady=14,
+                            height=min(len(lines) + 14, self.root.winfo_screenheight() // 26),
+                            spacing1=2, spacing3=2, **{**self.text_colours(), "highlightthickness": 0})
+        scrollbar = ttk.Scrollbar(help_window, command=help_text.yview)
+        help_text.config(yscrollcommand=scrollbar.set)
+        scrollbar.pack(side="right", fill="y")
+        help_text.pack(side="left", expand=True, fill="both")
+
+        help_text.tag_configure("title", font=HEADING_FONT, spacing3=6)
+        help_text.tag_configure("heading", font=HEADING_FONT, spacing1=14, spacing3=4)
+        help_text.tag_configure("plain", lmargin1=14, lmargin2=14)
+        # A bullet or step starts at its marker, and the lines it wraps onto
+        # line up with its text.
+        help_text.tag_configure("item", lmargin1=14, lmargin2=30)
+        help_text.insert("end", lines[0] + "\n", "title")
+        for line in lines[1:]:
+            if line.startswith("# "):
+                help_text.insert("end", line[2:] + "\n", "heading")
+            elif line.startswith("- "):
+                help_text.insert("end", "\u2022  " + line[2:] + "\n", "item")
+            elif line[:1].isdigit():
+                help_text.insert("end", line + "\n", "item")
+            else:
+                help_text.insert("end", line.strip() + "\n", "plain")
+        help_text.config(state="disabled")
+
+
+class HintEntry(ttk.Entry):
+    """A text field that shows a grey example while it is empty and not being edited."""
+
+    def __init__(self, parent, hint, **options):
+        super().__init__(parent, **options)
+        self.hint = hint
+        self.showing_hint = False
+        self.bind("<FocusIn>", lambda event: self._hide_hint())
+        self.bind("<FocusOut>", lambda event: self._show_hint())
+        self._show_hint()
+
+    def _show_hint(self):
+        if not self.showing_hint and not super().get():
+            self.showing_hint = True
+            super().insert(0, self.hint)
+            self.configure(foreground=HINT_COLOUR)
+
+    def _hide_hint(self):
+        if self.showing_hint:
+            self.showing_hint = False
+            super().delete(0, tk.END)
+            self.configure(foreground="")
+
+    def get(self):
+        # The example is only for display, so it is never the field's value.
+        return "" if self.showing_hint else super().get()
+
+    def delete(self, first, last=None):
+        self._hide_hint()
+        super().delete(first, last)
+
+    def insert(self, index, text):
+        self._hide_hint()
+        super().insert(index, text)
+        if self.focus_get() is not self:
+            self._show_hint()
+
+
+class ToolTip:
+    """A box of text that appears while the pointer is over a widget."""
+
+    def __init__(self, widget, text):
+        self.widget = widget
+        self.text = text
+        self.tooltip = None
+        self.widget.bind("<Enter>", self.show)
+        self.widget.bind("<Leave>", self.hide)
+
+    def show(self, event=None):
+        """Open the tooltip next to the widget, kept on screen."""
+        if self.tooltip or not self.text:
             return
-        try:
-            with open(save_path, "w", encoding="utf-8") as f:
-                f.write(format_json(self.field_values(), self.get_condition_rows(), self.last_metadata_output))
-            self.mark_saved()
-            self.status_label.configure(text=f"Saved {os.path.basename(save_path)}.")
-        except Exception as e:
-            messagebox.showerror("Error", f"Could not write JSON file: {e}")
+        x = self.widget.winfo_rootx() + 25
+        # Just below a one-line field, and near the top of a tall text box.
+        y = self.widget.winfo_rooty() + min(self.widget.winfo_height(), 30) + 2
+        self.tooltip = tk.Toplevel(self.widget)
+        self.tooltip.wm_overrideredirect(True)
+        ttk.Label(self.tooltip, text=self.text, justify="left",
+                  relief="solid", borderwidth=1, padding=(4, 2)).pack()
+        # Keep the tooltip on screen for widgets near the right edge.
+        self.tooltip.update_idletasks()
+        x = max(0, min(x, self.widget.winfo_screenwidth() - self.tooltip.winfo_reqwidth()))
+        self.tooltip.geometry(f"+{x}+{y}")
+
+    def hide(self, event=None):
+        if self.tooltip:
+            self.tooltip.destroy()
+            self.tooltip = None
+
+
+def field_hint(tooltip_text):
+    """Return the "e.g." part of a field's tooltip, to show inside the empty field."""
+    position = tooltip_text.find("e.g.")
+    return tooltip_text[position:].replace("\n", " ") if position >= 0 else ""
+
+
+def resource_path(name):
+    """Return the path of a file shipped with the program, in the executable or the repository."""
+    return os.path.join(getattr(sys, "_MEIPASS", os.path.dirname(current_dir)), name)
+
+
+def application_folder():
+    """Return the folder of ReMInD.exe, or of this file when run from source."""
+    if getattr(sys, "frozen", False):
+        return os.path.dirname(sys.executable)
+    return current_dir
+
+
+def find_templates(folder):
+    """Return the template files in a folder, in name order."""
+    return sorted(glob.glob(os.path.join(glob.escape(folder), "*_ReadME_template.txt")))
 
 
 def check_installation(log_path):
     """
-    Check that everything the program needs at run time can be loaded, for
-    testing a built executable: import the library of every file format and
-    build the window. Problems are written to log_path.
+    Check that a built executable can load everything it needs.
 
-    Returns the process exit code: 0 if all is well, 1 otherwise.
+    This imports the library of every file format and builds the window. CI
+    runs it on the built executable with the --check option.
+
+    Args:
+        log_path (str): the file to write any problems to, or "OK".
+
+    Returns:
+        int: the process exit code, 0 if everything loads and 1 otherwise.
     """
     problems = []
     for extension, (format_name, read) in IMAGE_READERS.items():
