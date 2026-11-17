@@ -54,8 +54,8 @@ PROJECT = """
 
 class LifTest(unittest.TestCase):
     def test_each_image_reports_its_own_settings(self):
-        # Values used to be looked up across the whole file, so every image
-        # was given the first image's objective and all images' channels.
+        # Each image's values must come from its own settings, not from the
+        # first image in the file or from all of them.
         overview, stack = [_image_metadata(e) for e in ET.fromstring(PROJECT).iter("Element")
                            if e.find("./Data/Image") is not None]
 
@@ -71,7 +71,8 @@ class LifTest(unittest.TestCase):
         self.assertEqual(stack["Objective Medium"], "Oil")
         self.assertEqual(stack["Channel Names"], ["HyD S 1", "HyD S 2"])
         self.assertEqual(stack["Dye Names"], ["DAPI", "N/A"])
-        # Two lasers in one scan: the file does not say which detector saw which.
+        # Two lasers were used in one scan, and the file does not say which
+        # detector saw which.
         self.assertEqual(stack["Excitation Wavelengths"], ["N/A", "N/A"])
         self.assertEqual(stack["Laser Lines (nm)"], ["405", "488"])
         self.assertEqual(stack["Size Z"], 11)
