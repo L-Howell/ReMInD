@@ -1,10 +1,11 @@
 """
-Extract metadata from Olympus/Evident OIR files using the oirfile library.
-Returns key image, instrument, and channel metadata as a dictionary using the
-same vocabulary as the other ReMInD extractors.
+Read the metadata of Olympus/Evident OIR files.
 
-An OIR file stores its settings as many separate XML blocks. A value is taken
-from the first block that has it.
+remind.py calls extract_oir_metadata when the user loads a .oir file. The
+result uses the same keys as the other extractors, so field_mapping can fill
+the form from it. The file is read with the oirfile library. An OIR file
+stores its settings in many separate XML blocks. Each value is taken from
+the first block that has it.
 """
 
 import os
@@ -19,72 +20,6 @@ except ImportError:  # allow running as a standalone script
     from _common import immersion_term, imaging_mode_term, parse_xml
 
 
-def _number(value, decimals=3):
-    """Return value as a rounded float, or "N/A" if it is missing or not a number."""
-    try:
-        return round(float(value), decimals)
-    except (TypeError, ValueError):
-        return "N/A"
-
-
-def _parse_blocks(xml_metadata):
-    """Return the root element of every XML block, skipping any that is not
-    well-formed XML."""
-    roots = []
-    for block in xml_metadata.values():
-        for text in block:
-            try:
-                roots.append(parse_xml(text))
-            except ET.ParseError:
-                continue
-    return roots
-
-
-def _find_text(roots, *paths):
-    """Return the text of the first non-empty element at any of the paths,
-    anywhere below the roots, or "N/A"."""
-    for root in roots:
-        for path in paths:
-            text = (root.findtext(f".//{path}") or "").strip()
-            if text:
-                return text
-    return "N/A"
-
-
-def _channel_settings(root):
-    """
-    Return the settings of each channel described in one XML block, in file
-    order, as dicts with the keys "name", "excitation", "emission" and
-    "pinhole". The list is empty for a block that describes no channels.
-    """
-    settings = []
-    seen = set()
-    for channel in root.findall(".//phase/group/channel"):
-        # Each channel is described twice, the second time without its
-        # detection band.
-        if channel.get("id") in seen:
-            continue
-        seen.add(channel.get("id"))
-
-        # A lambda scan has no fixed detection band.
-        band = channel.find(".//wavelengthRange")
-        start = _number(band.findtext("startWavelength"), 0) if band is not None else "N/A"
-        end = _number(band.findtext("endWavelength"), 0) if band is not None else "N/A"
-
-        # The laser is named in e.g. "LD405_65792Imaging_main_phase_1". A
-        # channel can use several lasers.
-        lasers = [match.group(1) for match in
-                  (re.search(r"LD(\d+)", laser.text or "") for laser in channel.findall("laserDataId")) if match]
-
-        settings.append({
-            "name": channel.findtext("name") or "N/A",
-            "excitation": int(lasers[0]) if len(lasers) == 1 else "/".join(lasers) or "N/A",
-            "emission": f"{int(start)}-{int(end)}" if "N/A" not in (start, end) else "N/A",
-            "pinhole": _number(channel.findtext(".//pinholeDiameter")),
-        })
-    return settings
-
-
 def extract_oir_metadata(file_path):
     """
     Extract metadata from an Olympus/Evident OIR file.
@@ -93,15 +28,15 @@ def extract_oir_metadata(file_path):
         file_path (str): path to the .oir file.
 
     Returns:
-        dict: the metadata. A value the file does not record is "N/A". The
-        per-channel values are lists with one entry per channel, in the
-        order of the image data. Lengths are in micrometres and wavelengths
-        in nanometres; a channel excited by several lasers gives them joined
+        dict: the metadata. A value the file does not record is "N/A".
+        Per-channel values are lists with one entry per channel, in the order
+        of the image data. Lengths are in micrometres and wavelengths in
+        nanometres. A channel excited by several lasers lists them joined
         with "/", e.g. "405/488". "Size Z", "Size T" and "Size C" are 1 when
         the file has no such axis.
 
     Raises:
-        Exception: whatever oirfile raises for a file it cannot read.
+        Exception: if oirfile cannot read the file.
     """
     with OirFile(file_path) as oir:
         sizes = oir.sizes
@@ -150,7 +85,6 @@ def extract_oir_metadata(file_path):
         "Objective NA": numerical_aperture,
         "Objective Magnification": magnification,
         "Objective Medium": immersion_term(_find_text(roots, "objectiveLens/immersion")),
-        # The device name, e.g. "LSM".
         "Acquisition Modes": imaging_mode_term(_find_text(roots, "deviceName", "acquisitionMode", "modality")),
         "Channel Names": channel_names,
         "Dye Names": [dyes.get(name) or "N/A" for name in channel_names],
@@ -171,6 +105,64 @@ def extract_oir_metadata(file_path):
         "Bits Per Sample": bits,
         "File Name": os.path.basename(file_path),
     }
+
+
+def _channel_settings(root):
+    """Return the name, excitation, emission band and pinhole of each channel in an XML block."""
+    settings = []
+    seen = set()
+    for channel in root.findall(".//phase/group/channel"):
+        # Each channel is described twice, and the second time has no detection band.
+        if channel.get("id") in seen:
+            continue
+        seen.add(channel.get("id"))
+
+        # A lambda scan has no fixed detection band.
+        band = channel.find(".//wavelengthRange")
+        start = _number(band.findtext("startWavelength"), 0) if band is not None else "N/A"
+        end = _number(band.findtext("endWavelength"), 0) if band is not None else "N/A"
+
+        # The laser is named in an ID such as "LD405_65792Imaging_main_phase_1".
+        lasers = [match.group(1) for match in
+                  (re.search(r"LD(\d+)", laser.text or "") for laser in channel.findall("laserDataId")) if match]
+
+        settings.append({
+            "name": channel.findtext("name") or "N/A",
+            "excitation": int(lasers[0]) if len(lasers) == 1 else "/".join(lasers) or "N/A",
+            "emission": f"{int(start)}-{int(end)}" if "N/A" not in (start, end) else "N/A",
+            "pinhole": _number(channel.findtext(".//pinholeDiameter")),
+        })
+    return settings
+
+
+def _parse_blocks(xml_metadata):
+    """Return the root element of every well-formed XML block."""
+    roots = []
+    for block in xml_metadata.values():
+        for text in block:
+            try:
+                roots.append(parse_xml(text))
+            except ET.ParseError:
+                continue
+    return roots
+
+
+def _find_text(roots, *paths):
+    """Return the text of the first non-empty element at any of the paths below the roots, or "N/A"."""
+    for root in roots:
+        for path in paths:
+            text = (root.findtext(f".//{path}") or "").strip()
+            if text:
+                return text
+    return "N/A"
+
+
+def _number(value, decimals=3):
+    """Return value as a rounded float, or "N/A" if it is missing or not a number."""
+    try:
+        return round(float(value), decimals)
+    except (TypeError, ValueError):
+        return "N/A"
 
 
 if __name__ == "__main__":
