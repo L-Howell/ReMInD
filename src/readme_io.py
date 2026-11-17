@@ -1,7 +1,9 @@
 """
-Read and write the ReadMe.txt file format used by ReMInD.
+Read and write ReMInD's ReadMe.txt format and its JSON equivalent.
 
-A ReadMe has up to three parts, in this order:
+remind.py uses this module to save the form, to load a saved ReadMe and to
+load a facility template, which uses the same format. After its comment
+lines, a ReadMe has up to three parts, in this order:
 
     # <comment lines, ignored when reading>
 
@@ -17,9 +19,7 @@ A ReadMe has up to three parts, in this order:
     # Extracted Image Metadata
     key: value                    one line per item, to the end of the file
 
-Templates use the same format.
-
-The same content can be saved as JSON; see format_json and parse_json.
+The JSON export holds the same content as one JSON object.
 """
 
 import json
@@ -32,6 +32,11 @@ _SECTION_HEADINGS = ("# Filename Key", "# Extracted Image Metadata")
 def format_readme(header, fields, filename_key=(), metadata=None):
     """
     Build the text of a ReadMe.txt file.
+
+    Values are written as they are, so parse_readme cannot recover some of
+    them: a single-line value that contains a line break, a keyword that
+    contains " -> ", or multi-line text with a line that reads exactly
+    "# Filename Key" or "# Extracted Image Metadata".
 
     Args:
         header (str): first line of the file. Must start with "#" so it is
@@ -46,11 +51,6 @@ def format_readme(header, fields, filename_key=(), metadata=None):
 
     Returns:
         str: the file content, without a trailing newline.
-
-    Values are written as they are. parse_readme cannot recover a single-line
-    value that contains a line break, a keyword that contains " -> ", or
-    multi-line text that contains a line reading exactly "# Filename Key" or
-    "# Extracted Image Metadata".
     """
     lines = [header, ""]
     for label, value in fields:
@@ -78,6 +78,10 @@ def parse_readme(text):
     """
     Read the text of a ReadMe.txt or template file.
 
+    Lines that are blank, start with "#" or have no ": " separator are
+    skipped. Text that is not a ReadMe therefore gives three empty results,
+    not an error.
+
     Args:
         text (str): the file content.
 
@@ -89,11 +93,7 @@ def parse_readme(text):
                 field with that name. Fields with an empty value are left out.
             filename_key (list[tuple[str, str]]): (keyword, group) rows.
             metadata (dict): the extracted image metadata. All values are
-                strings; a list comes back as the text it was written as.
-
-    Lines that are blank, start with "#", or have no ": " separator are
-    skipped. Text that is not a ReadMe at all therefore gives three empty
-    results rather than an error.
+                strings. A list comes back as the text it was written as.
     """
     lines = text.splitlines()
     fields = {}
@@ -106,7 +106,7 @@ def parse_readme(text):
 
         if line == "# Filename Key":
             idx += 1
-            # Only the next heading ends the section: a keyword can itself
+            # Only the next heading ends the section, because a keyword can
             # start with "#", as in "#3 -> Slide 3".
             while idx < len(lines) and lines[idx].strip() != "# Extracted Image Metadata":
                 row = lines[idx].strip()
@@ -117,8 +117,8 @@ def parse_readme(text):
             continue
 
         if line == "# Extracted Image Metadata":
-            # This section runs to the end of the file, so a metadata value
-            # that happens to start with "#" is not mistaken for a heading.
+            # This section runs to the end of the file, so that a metadata
+            # value starting with "#" is not taken for a heading.
             for row in lines[idx + 1:]:
                 row = row.strip()
                 if ": " in row:
@@ -128,8 +128,8 @@ def parse_readme(text):
 
         if line.endswith(":") and idx + 1 < len(lines) and lines[idx + 1].strip() == "---":
             label = line[:-1].strip()
-            # The block runs to the last "---" before the next section, so
-            # that a "---" line typed into the text does not end it early.
+            # The block runs to the last "---" before the next section, so that
+            # a "---" line typed into the text does not end it early.
             end = next((i for i in range(idx + 2, len(lines)) if lines[i].strip() in _SECTION_HEADINGS),
                        len(lines))
             closing = max((i for i in range(idx + 2, end) if lines[i].strip() == "---"), default=end)
@@ -149,10 +149,16 @@ def format_json(fields, filename_key=(), metadata=None):
     """
     Build the text of a JSON export.
 
-    Takes the same arguments as format_readme, without the header. The result
-    is one JSON object with the form fields as its members, followed by
-    "Filename Key" (a list of {"keyword", "group"} objects) and "Extracted
-    Image Metadata" (an object) when there are any.
+    Args:
+        fields (list[tuple[str, str]]): (label, value) for every form field,
+            in the order they should appear.
+        filename_key (list[tuple[str, str]]): (keyword, group) rows.
+        metadata (dict | None): extracted image metadata.
+
+    Returns:
+        str: one JSON object. Its members are the form fields, then "Filename
+        Key" (a list of {"keyword", "group"} objects) and "Extracted Image
+        Metadata" (an object). Each of the last two is left out when empty.
     """
     data = dict(fields)
     if filename_key:
@@ -166,11 +172,15 @@ def parse_json(text):
     """
     Read the text of a JSON export.
 
-    Returns the same (fields, filename_key, metadata) as parse_readme. Fields
-    with an empty value are left out, as they are there.
+    Args:
+        text (str): the file content.
+
+    Returns:
+        tuple: (fields, filename_key, metadata), as parse_readme returns
+        them. Fields with an empty value are left out.
 
     Raises:
-        ValueError: if the text is not a JSON object.
+        ValueError: if the text is not JSON, or is not a JSON object.
     """
     data = json.loads(text)
     if not isinstance(data, dict):
