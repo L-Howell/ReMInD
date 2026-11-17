@@ -1,8 +1,10 @@
-"""The version of ReMInD. This is the only place it is written down.
+"""
+The version and release date of ReMInD, recorded only here.
 
-Versions follow EffVer (https://jacobtomlinson.dev/effver/): the three numbers
-are macro.meso.micro, and which one is raised says how much effort it takes a
-user to move to the new version: a lot, some, or none.
+The window, the Help text, each ReadMe written and the release workflow all
+read them from here. Versions follow EffVer (https://jacobtomlinson.dev/effver/). The three
+numbers are macro.meso.micro. The number that goes up says how much work a
+user needs to do to upgrade: a lot, some or none.
 """
 
 VERSION = "4.0.0"
