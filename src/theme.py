@@ -1,9 +1,10 @@
 """
 The colours and fonts of the ReMInD window.
 
-To change how the program looks, edit COLOURS. Every ttk widget is styled
-from it by apply_theme, on top of the "clam" theme that ships with Tk, so no
-theme package or image files are needed.
+remind.py calls apply_theme when the window opens and when the user switches
+between dark and light mode. To change how the program looks, edit COLOURS.
+apply_theme styles every ttk widget from it, on top of Tk's built-in "clam"
+theme. No theme package or image files are needed.
 """
 
 import tkinter.font as tkfont
@@ -32,57 +33,39 @@ COLOURS = {
     },
 }
 
-# For the examples shown inside empty fields. One grey that is readable on
-# both the dark and the light field colour, so it need not change with the mode.
+# The colour of the example text in empty fields. This grey is readable on
+# both dark and light fields, so it does not change with the mode.
 HINT_COLOUR = "#8a8a8a"
 
 BODY_FONT = "RemindBody"
 HEADING_FONT = "RemindHeading"
 
 
-def _set_up_fonts(root):
-    """Create the two named fonts, and make Tk's standard fonts match them so
-    that text boxes and fields use the same family and size as labels."""
-    if BODY_FONT in tkfont.names(root):
-        return
-    families = tkfont.families(root)
-    family = next((f for f in ("Segoe UI", "Inter", "DejaVu Sans") if f in families), "TkDefaultFont")
-    # Negative sizes are in pixels, so the layout does not depend on the
-    # display's DPI setting.
-    # Created through Tk directly: a tkfont.Font object deletes its font
-    # when Python discards the object.
-    root.tk.call("font", "create", BODY_FONT, "-family", family, "-size", -14)
-    root.tk.call("font", "create", HEADING_FONT, "-family", family, "-size", -16, "-weight", "bold")
-    for name in ("TkTextFont", "TkDefaultFont"):
-        tkfont.nametofont(name, root=root).configure(family=family, size=-14)
-
-
 def apply_theme(root, mode):
     """
     Style every ttk widget of the application.
 
-    Args:
-        root: the Tk root window.
-        mode: "dark" or "light", a key of COLOURS.
-
-    Returns:
-        dict: the colours now in use, for the few widgets that are not ttk
-        widgets (text boxes, the scrolling canvas) and must be coloured by
-        the caller.
-
-    Besides the standard widget styles, these named styles are defined:
+    Besides the standard widget styles, this defines these named styles:
     "Page.TFrame" and "Page.TLabel" for widgets placed directly on the page,
     "Band.TFrame" and "Band.TLabel" for the toolbar, "Card.TFrame" for a
     bordered panel, "Muted.TLabel" and "Heading.TLabel" for text inside a
     card, and "Accent.TButton" for the main button.
+
+    Args:
+        root (tkinter.Tk): the root window.
+        mode (str): "dark" or "light", a key of COLOURS.
+
+    Returns:
+        dict: the colours now in use. The caller colours the widgets that are
+        not ttk widgets (text boxes and the scrolling canvas) from these.
     """
     c = COLOURS[mode]
     _set_up_fonts(root)
     style = ttk.Style(root)
     style.theme_use("clam")
 
-    # "clam" draws borders from three colours; setting the light and dark
-    # ones to the fill colour leaves a flat outline in the border colour.
+    # "clam" draws borders in three colours. Setting the light and dark ones
+    # to the fill colour leaves a flat outline in the border colour.
     style.configure(".", background=c["card"], foreground=c["text"], fieldbackground=c["field"],
                     bordercolor=c["border"], lightcolor=c["card"], darkcolor=c["card"], troughcolor=c["page"],
                     focuscolor=c["accent"], selectbackground=c["accent"], selectforeground=c["on accent"],
@@ -103,8 +86,8 @@ def apply_theme(root, mode):
               lightcolor=[("active", c["hover"])], darkcolor=[("active", c["hover"])])
     style.configure("Accent.TButton", background=c["accent"], foreground=c["on accent"], bordercolor=c["accent"],
                     lightcolor=c["accent"], darkcolor=c["accent"])
-    # The accent button keeps its colour under the pointer; without this it
-    # would take the hover colour of an ordinary button.
+    # Without this, the accent button would take an ordinary button's hover
+    # colour under the pointer.
     style.map("Accent.TButton", background=[("active", c["accent"])], lightcolor=[("active", c["accent"])],
               darkcolor=[("active", c["accent"])])
 
@@ -119,8 +102,24 @@ def apply_theme(root, mode):
                     lightcolor=c["border"], darkcolor=c["border"], arrowcolor=c["muted"])
     style.map("TScrollbar", background=[("active", c["muted"])])
 
-    # The list that drops down from a dropdown is a classic Tk listbox.
+    # A dropdown's list is a classic Tk listbox, which ttk styles do not reach.
     for option, value in (("background", c["field"]), ("foreground", c["text"]),
                           ("selectBackground", c["accent"]), ("selectForeground", c["on accent"])):
         root.option_add(f"*TCombobox*Listbox.{option}", value)
     return c
+
+
+def _set_up_fonts(root):
+    """Create the body and heading fonts, and make Tk's standard fonts match them."""
+    if BODY_FONT in tkfont.names(root):
+        return
+    families = tkfont.families(root)
+    family = next((f for f in ("Segoe UI", "Inter", "DejaVu Sans") if f in families), "TkDefaultFont")
+    # Negative sizes are in pixels, so the layout does not depend on the
+    # display's DPI setting. The fonts are created through Tk directly,
+    # because Tk deletes a tkfont.Font's font when Python discards the object.
+    root.tk.call("font", "create", BODY_FONT, "-family", family, "-size", -14)
+    root.tk.call("font", "create", HEADING_FONT, "-family", family, "-size", -16, "-weight", "bold")
+    for name in ("TkTextFont", "TkDefaultFont"):
+        # Text boxes and fields use Tk's standard fonts, so they must match the labels.
+        tkfont.nametofont(name, root=root).configure(family=family, size=-14)
