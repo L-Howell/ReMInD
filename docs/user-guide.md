@@ -45,7 +45,7 @@ bottom of the form and is saved with the ReadMe.
   in the acquisition software, or the channel name where no dye was set. Replace it
   with your own label where needed. A part the file does not record is left out, so
   a channel can appear as just `405` or just `DAPI`.
-- **Immersion**: a file says only that an objective uses oil, so it is filled in as
+- **Immersion**: a file records only that an objective uses oil, so it is filled in as
   `Oil`. Choose `Oil-23` or `Oil-37` if you know which was used. `Multi-immersion`
   means the objective takes several media; replace it with the one you used.
 - **Microscope name** is the model name stored in the file. If a
@@ -57,9 +57,9 @@ bottom of the form and is saved with the ReadMe.
 A Leica project or a multi-series OME-TIFF can hold images taken with different
 settings. ReMInD reads every image.
 
-- Where the images agree, the value is shown once.
+- Where every image has the same value, it is shown once.
 - Where they differ, every distinct value is listed, most common first, e.g.
-  `63x/1.40 OIL; 10x/0.40 DRY`. The Extracted Image Metadata also says which images
+  `63x/1.40 OIL; 10x/0.40 DRY`. The Extracted Image Metadata also lists which images
   each value belongs to.
 - **Date and time** is that of the earliest image.
 - **Z-stack** and **Time series** are set to `Both` when only some of the images have
@@ -101,8 +101,8 @@ earlier one. You can also edit a `ReadMe.txt` in any text editor.
 **Clear Form** empties the form and puts back the values of the template, if there is
 one.
 
-Clear Form, Load ReadMe.txt and closing the window ask first if the form has changes
-that have not been saved.
+Clear Form, Load ReadMe.txt and closing the window show a prompt first if the form
+has changes that have not been saved.
 
 ReadMe files written by version 3.0.0 or earlier may not load completely: the Filename
 Key was written differently and one field has been renamed.

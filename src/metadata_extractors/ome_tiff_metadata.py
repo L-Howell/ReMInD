@@ -35,7 +35,7 @@ def extract_ometiff_metadata(file_path):
         list[dict]: one metadata dict per image in the file. A value the file
         does not record is "N/A". Pixel sizes are converted to micrometres.
         Wavelengths are given as written, which is nanometres unless the
-        file says otherwise.
+        file records another unit.
 
     Raises:
         ValueError: if the TIFF holds no OME-XML, as in a plain TIFF, or the

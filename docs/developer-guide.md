@@ -239,9 +239,9 @@ python -m unittest discover -s tests
 
 - `tests/test_readme_io.py` - the ReadMe.txt and JSON formats read back what was written
 - `tests/test_field_mapping.py` - which form fields are filled from image metadata, and how several images are combined
-- `tests/test_lif.py` - each image in a LIF file reports its own settings
+- `tests/test_lif.py` - each image in a LIF file is given its own settings
 - `tests/test_nd2.py` - laser lines are read from the ND2 acquisition settings text, and the order of day and month in its date is worked out
-- `tests/test_ome_tiff.py` - an OME-TIFF image uses the objective it names, and pixel sizes are converted to micrometres
+- `tests/test_ome_tiff.py` - an OME-TIFF image uses the objective it refers to, and pixel sizes are converted to micrometres
 - `tests/test_form.py` - form behaviour (Clear Form, unsaved changes, templates, loading files, examples in empty fields).
   These open the real window and are skipped where no display is available
 

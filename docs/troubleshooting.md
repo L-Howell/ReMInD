@@ -10,7 +10,7 @@
   or download it again from the
   [releases page](https://github.com/L-Howell/ReMInD/releases/latest).
 - **Still nothing.** Open a command prompt in the folder that holds the program and
-  run `ReMInD.exe --check check.log`. Then open `check.log`. It says `OK`, or lists
+  run `ReMInD.exe --check check.log`. Then open `check.log`. It contains `OK`, or lists
   what could not be loaded. Include it when you [report the problem](#reporting-a-problem).
 
 ## Loading an image file
@@ -42,14 +42,14 @@ ReMInD can only fill in what the file records, and that depends on the microscop
 its software. The **Extracted Image Metadata** panel lists everything that was read.
 Known cases:
 
-- **Immersion is `Oil`, not `Oil-23` or `Oil-37`.** No file says which oil was used.
+- **Immersion is `Oil`, not `Oil-23` or `Oil-37`.** No file records which oil was used.
   Choose it yourself.
 - **Immersion is `Multi-immersion`.** The objective takes several media and the file
-  does not reliably say which was used. Replace it with the one you used.
+  does not reliably record which was used. Replace it with the one you used.
 - **Microscope name did not change.** The template on this computer sets it, and the
   template's name is kept. See [Templates](user-guide.md#templates).
 - **Leica: a channel has no excitation wavelength.** When one scan uses several
-  lasers, the file does not say which laser belongs to which detector. All the laser
+  lasers, the file does not record which laser belongs to which detector. All the laser
   lines are listed in the Extracted Image Metadata.
 - **Nikon: Microscope name is empty.** Most ND2 files do not name the microscope.
 - **Nikon: the date is not in the form `YYYY-MM-DD HH:MM:SS`.** Some older ND2 files

@@ -71,8 +71,8 @@ class LifTest(unittest.TestCase):
         self.assertEqual(stack["Objective Medium"], "Oil")
         self.assertEqual(stack["Channel Names"], ["HyD S 1", "HyD S 2"])
         self.assertEqual(stack["Dye Names"], ["DAPI", "N/A"])
-        # Two lasers were used in one scan, and the file does not say which
-        # detector saw which.
+        # Two lasers were used in one scan, and the file does not record which
+        # laser goes with which detector.
         self.assertEqual(stack["Excitation Wavelengths"], ["N/A", "N/A"])
         self.assertEqual(stack["Laser Lines (nm)"], ["405", "488"])
         self.assertEqual(stack["Size Z"], 11)

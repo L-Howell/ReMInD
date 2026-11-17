@@ -50,7 +50,7 @@ def extract_oir_metadata(file_path):
     channel_names = [str(name) for name in channel_axis] if channel_axis is not None else ["N/A"]
     count = len(channel_names)
 
-    # Micrometres, as the pixelUnit elements beside these values say.
+    # Micrometres, the unit in the pixelUnit elements beside these values.
     length = next((root.find(".//length") for root in roots if root.find(".//length") is not None), None)
     pixel_size = {axis: _number(length.findtext(axis.lower())) if length is not None else "N/A" for axis in "XYZ"}
     if "Z" not in sizes:
@@ -68,7 +68,7 @@ def extract_oir_metadata(file_path):
     excitation = emission = pinholes = ["N/A"] * count
     settings = next((s for s in map(_channel_settings, roots) if s), [])
     # When one channel was saved but several are described, the file does not
-    # say which one it is, so nothing is reported for it.
+    # record which one it is, so nothing is reported for it.
     if settings and (channel_axis is not None or len(settings) == 1):
         if channel_axis is None:
             channel_names = [settings[0]["name"]]

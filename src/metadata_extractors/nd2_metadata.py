@@ -110,7 +110,7 @@ def _acquisition_date(text, julian_day):
     """Return the date text as "YYYY-MM-DD HH:MM:SS", or unchanged if its day and month are unclear."""
     # NIS-Elements writes the local time in the acquisition computer's date
     # format: "10/4/2019 10:35:36 AM" with the month first, or "04/10/2019
-    # 10:35:36" with the day first. The text does not say which. The Julian
+    # 10:35:36" with the day first. The text does not show which. The Julian
     # day of the first frame, in UTC, settles it.
     dates = set()
     for date_format in ("%m/%d/%Y", "%d/%m/%Y"):
@@ -171,7 +171,7 @@ def _imaging_mode(flags):
 
 
 def _immersion(objective_name, refractive_index):
-    """Return the immersion medium, or "N/A" if it cannot be told."""
+    """Return the immersion medium, or "N/A" if it cannot be determined."""
     # The name is checked first: NIS-Elements leaves the refractive index at
     # 1.0 unless the user sets it, which would make a water objective "Air".
     for pattern, medium in _NAME_MEDIA:

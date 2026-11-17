@@ -34,7 +34,7 @@ class FieldMappingTest(unittest.TestCase):
         self.assertEqual(metadata_to_form_fields(metadata), {})
 
     def test_oil_is_not_given_a_temperature_grade(self):
-        # The form offers Oil-23 and Oil-37, but no image file says which was
+        # The form offers Oil-23 and Oil-37, but no image file records which was
         # used, so filling either would record a guess.
         self.assertEqual(metadata_to_form_fields(COMMON_METADATA)["Immersion"], "Oil")
 

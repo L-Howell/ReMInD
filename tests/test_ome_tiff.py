@@ -32,7 +32,7 @@ class OmeTiffTest(unittest.TestCase):
         root = parse_xml(OME_XML)
         metadata = _image_metadata(root, root.find("Image"))
 
-        # The file's first objective is the 63x; this image names the 10x.
+        # The file's first objective is the 63x. This image refers to the 10x.
         self.assertEqual(metadata["Objective Model"], "EC Plan-Neofluar 10x NA 0.3")
         self.assertEqual(metadata["Objective Medium"], "Air")
         # A pixel size is in the unit the file gives, micrometres by default.

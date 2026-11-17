@@ -71,7 +71,7 @@ def merge_form_fields(per_image):
 
     Returns:
         dict: form field label -> text. A field is included when at least one
-        image has a value for it. Where the images agree, that value is used.
+        image has a value for it. Where every image has the same value, it is used.
         Where they differ, "Date and time" is the earliest value, and
         "Z-stack" and "Time series" are "Both" when some images are "Yes"
         and others "No". Any other field lists the distinct values, most

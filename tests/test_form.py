@@ -39,7 +39,7 @@ class FormTest(unittest.TestCase):
         self.folder = tempfile.TemporaryDirectory()
         self.addCleanup(self.folder.cleanup)
 
-        # Message boxes wait for a click, and the real readers need image files.
+        # Message boxes block until clicked, and the real readers need image files.
         for patch in (
             mock.patch.object(remind, "messagebox"),
             mock.patch.object(remind, "application_folder", return_value=self.folder.name),
@@ -81,7 +81,7 @@ class FormTest(unittest.TestCase):
         remind.messagebox.askyesno.return_value = True
         self.app.clear_form()
         self.assertEqual(self.field("Experiment name"), "")
-        # Nothing is left to lose, so the window may now close without asking.
+        # No changes are unsaved, so the window now closes without a prompt.
         remind.messagebox.askyesno.reset_mock()
         self.assertTrue(self.app.may_discard_changes())
         remind.messagebox.askyesno.assert_not_called()

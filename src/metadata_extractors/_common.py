@@ -10,7 +10,7 @@ that holds several images.
 import xml.etree.ElementTree as ET
 from collections import Counter
 
-# Image files say only "oil", never which oil, so the form gets plain "Oil"
+# Image files record only "oil", never which oil, so the form gets plain "Oil"
 # and the user picks Oil-23 or Oil-37 if they know.
 _IMMERSION_TERMS = {
     "OIL":          "Oil",
@@ -25,7 +25,7 @@ _IMMERSION_TERMS = {
     "GLYCERINE":    "Glycerol",
     "SILICONE":     "Silicone",
     # A multi-immersion objective works with several media, and the file
-    # does not reliably say which was used.
+    # does not reliably record which was used.
     "IMM":          "Multi-immersion",
 }
 

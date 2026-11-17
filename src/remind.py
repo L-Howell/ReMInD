@@ -145,7 +145,7 @@ class RemindApp:
         try:
             self.root.iconbitmap(resource_path("ReMInD.ico"))
         except tk.TclError:
-            pass  # .ico files are only understood on Windows
+            pass  # Tk reads .ico files only on Windows
         self.root.protocol("WM_DELETE_WINDOW", self.close_window)
 
         # Capped at 85% of the screen so the window fits on small displays.
@@ -215,7 +215,7 @@ class RemindApp:
         self.dark_mode_btn = button("Dark", self.toggle_dark_mode, "Switch between dark and light", side="right")
         button("Help", self.show_help, "", side="right")
 
-        # Success is not shown in a popup, so this line says what the last action did.
+        # Success is not shown in a popup, so this line shows the result of the last action.
         self.status_label = ttk.Label(
             self.root, padding=(14, 0, 14, 10), style="Band.TLabel",
             text="Start by loading an image file, or fill in the form by hand.")
@@ -445,7 +445,7 @@ class RemindApp:
         self.fill_form({}, [], {})
 
     def clear_form(self):
-        """Empty the form and put back the startup template's values, after asking about unsaved changes."""
+        """Empty the form and put back the startup template's values, after a prompt about unsaved changes."""
         if not self.may_discard_changes():
             return
         self.empty_form()
@@ -550,7 +550,7 @@ class RemindApp:
             self.root.destroy()
 
     def load_existing(self):
-        """Ask for a ReadMe.txt or JSON export, and load it."""
+        """Prompt for a ReadMe.txt or JSON export, and load it."""
         path = filedialog.askopenfilename(title="Select a ReadMe.txt or a JSON export",
                                           filetypes=[("ReadMe or JSON export", "*.txt *.json")])
         if path and self.may_discard_changes():
@@ -602,7 +602,7 @@ class RemindApp:
             self.load_template(templates[0])
 
     def load_fields_from_image(self):
-        """Ask for an image file, and fill the form from it."""
+        """Prompt for an image file, and fill the form from it."""
         filetypes = [
             ("Image files", "*.czi *.lif *.nd2 *.oir *.tif *.tiff"),
             ("All files", "*.*"),
