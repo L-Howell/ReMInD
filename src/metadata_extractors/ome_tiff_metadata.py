@@ -1,10 +1,11 @@
 """
-Extract metadata from OME-TIFF files using the tifffile library.
-Returns key image, instrument, and channel metadata as one dictionary per
-image, using the same vocabulary as the other ReMInD extractors.
+Read the metadata of OME-TIFF files.
 
-tifffile hands over the OME-XML text stored in the file; the values are read
-from that XML here.
+remind.py calls extract_ometiff_metadata when the user loads a .tif or .tiff
+file. The results use the same keys as the other extractors, so
+field_mapping can fill the form from them. tifffile reads the OME-XML text
+stored in the file, and this module reads the values from that XML. The
+result has one dict per image.
 """
 
 import os
@@ -18,47 +19,44 @@ except ImportError:  # allow running as a standalone script
     from _common import immersion_term, imaging_mode_term, parse_xml
 
 
-# Factor from each length unit OME allows for pixel sizes to micrometres.
-# OME-XML uses micrometres when no unit is given.
+# The factor that converts each length unit OME allows for pixel sizes into
+# micrometres. OME-XML uses micrometres when no unit is given.
 _TO_MICROMETRES = {"nm": 1e-3, "µm": 1, "um": 1, "mm": 1e3, "cm": 1e4, "m": 1e6, "Å": 1e-4}
 
 
-def _number(value, decimals=3):
-    """Return value as a rounded float, or "N/A" if it is missing or not a number."""
-    try:
-        return round(float(value), decimals)
-    except (TypeError, ValueError):
-        return "N/A"
-
-
-def _pixel_size(pixels, axis):
-    """Return the pixel size along an axis in micrometres, or "N/A"."""
-    size = _number(pixels.get(f"PhysicalSize{axis}"), 9)
-    factor = _TO_MICROMETRES.get(pixels.get(f"PhysicalSize{axis}Unit", "µm"))
-    return round(size * factor, 3) if size != "N/A" and factor else "N/A"
-
-
-def _instrument_and_objective(root, image):
+def extract_ometiff_metadata(file_path):
     """
-    Return the (Instrument, Objective) elements an image refers to. Each
-    falls back to the first one in the file when the image does not name
-    one, and is None when the file has none.
+    Extract metadata from an OME-TIFF file.
+
+    Args:
+        file_path (str): path to the .tif or .tiff file.
+
+    Returns:
+        list[dict]: one metadata dict per image in the file. A value the file
+        does not record is "N/A". Pixel sizes are converted to micrometres.
+        Wavelengths are given as written, which is nanometres unless the
+        file says otherwise.
+
+    Raises:
+        ValueError: if the TIFF holds no OME-XML, as in a plain TIFF, or the
+            OME-XML describes no images.
+        Exception: if tifffile cannot read the file.
     """
-    instruments = root.findall("Instrument")
-    reference = image.find("InstrumentRef")
-    instrument = next((i for i in instruments if reference is not None and i.get("ID") == reference.get("ID")),
-                      instruments[0] if instruments else None)
-    if instrument is None:
-        return None, None
-    objectives = instrument.findall("Objective")
-    settings = image.find("ObjectiveSettings")
-    objective = next((o for o in objectives if settings is not None and o.get("ID") == settings.get("ID")),
-                     objectives[0] if objectives else None)
-    return instrument, objective
+    with TiffFile(file_path) as tif:
+        ome_xml = tif.ome_metadata
+    if not ome_xml:
+        raise ValueError("No OME-XML metadata found in this TIFF. "
+                         "It may be a plain TIFF rather than an OME-TIFF.")
+    root = parse_xml(ome_xml)
+    images = root.findall("Image")
+    if not images:
+        raise ValueError("The OME-TIFF describes no images.")
+    file_name = os.path.basename(file_path)
+    return [{**_image_metadata(root, image), "File Name": file_name} for image in images]
 
 
 def _image_metadata(root, image):
-    """Build the metadata dict for one Image element of the OME-XML."""
+    """Build the metadata dict of one Image element of the OME-XML."""
     pixels = image.find("Pixels")
     channels = pixels.findall("Channel")
     instrument, objective = _instrument_and_objective(root, image)
@@ -82,7 +80,7 @@ def _image_metadata(root, image):
     if medium == "N/A" and settings is not None:
         medium = settings.get("Medium") or "N/A"
 
-    # One imaging mode for the image: the most common among its channels.
+    # The form takes one imaging mode, so the most common among the channels is used.
     modes = Counter(c.get("AcquisitionMode") for c in channels if c.get("AcquisitionMode"))
     mode = imaging_mode_term(modes.most_common(1)[0][0]) if modes else "N/A"
 
@@ -116,35 +114,34 @@ def _image_metadata(root, image):
     }
 
 
-def extract_ometiff_metadata(file_path):
-    """
-    Extract metadata from an OME-TIFF file.
+def _instrument_and_objective(root, image):
+    """Return the Instrument and Objective elements an image uses, or the file's first ones."""
+    instruments = root.findall("Instrument")
+    reference = image.find("InstrumentRef")
+    instrument = next((i for i in instruments if reference is not None and i.get("ID") == reference.get("ID")),
+                      instruments[0] if instruments else None)
+    if instrument is None:
+        return None, None
+    objectives = instrument.findall("Objective")
+    settings = image.find("ObjectiveSettings")
+    objective = next((o for o in objectives if settings is not None and o.get("ID") == settings.get("ID")),
+                     objectives[0] if objectives else None)
+    return instrument, objective
 
-    Args:
-        file_path (str): path to the .tif or .tiff file.
 
-    Returns:
-        list[dict]: one metadata dict per image in the file. A value the file
-        does not record is "N/A". Pixel sizes are converted to micrometres;
-        wavelengths are given as written, which is nanometres unless the
-        file says otherwise.
+def _pixel_size(pixels, axis):
+    """Return the pixel size along an axis in micrometres, or "N/A"."""
+    size = _number(pixels.get(f"PhysicalSize{axis}"), 9)
+    factor = _TO_MICROMETRES.get(pixels.get(f"PhysicalSize{axis}Unit", "µm"))
+    return round(size * factor, 3) if size != "N/A" and factor else "N/A"
 
-    Raises:
-        ValueError: if the TIFF holds no OME-XML (it is a plain TIFF), or the
-            OME-XML describes no images.
-        Exception: whatever tifffile raises for a file it cannot read.
-    """
-    with TiffFile(file_path) as tif:
-        ome_xml = tif.ome_metadata
-    if not ome_xml:
-        raise ValueError("No OME-XML metadata found in this TIFF. "
-                         "It may be a plain TIFF rather than an OME-TIFF.")
-    root = parse_xml(ome_xml)
-    images = root.findall("Image")
-    if not images:
-        raise ValueError("The OME-TIFF describes no images.")
-    file_name = os.path.basename(file_path)
-    return [{**_image_metadata(root, image), "File Name": file_name} for image in images]
+
+def _number(value, decimals=3):
+    """Return value as a rounded float, or "N/A" if it is missing or not a number."""
+    try:
+        return round(float(value), decimals)
+    except (TypeError, ValueError):
+        return "N/A"
 
 
 if __name__ == "__main__":
