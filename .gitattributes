@@ -1,0 +1,5 @@
+# Microscope files used as test fixtures: never convert line endings or diff them.
+tests/data/vendor_formats/**/*.czi binary
+tests/data/vendor_formats/**/*.lif binary
+tests/data/vendor_formats/**/*.nd2 binary
+tests/data/vendor_formats/**/*.oir binary

@@ -56,10 +56,20 @@ def _detector_for(channel_name, detectors):
     return None
 
 
-def _detection_range(detector):
-    """Return a detector's detection band as "start-end" in nm, or "N/A"."""
+def _excitation(channel):
+    """Return a channel's excitation wavelength in nm, or "N/A".
+
+    ExcitationWavelength is the dye's peak, so the laser line that lit the
+    channel is used instead when there is exactly one."""
+    lasers = [w.text for w in channel.findall("LightSourcesSettings/LightSourceSettings/Wavelength")]
+    return _number(lasers[0] if len(lasers) == 1 else _text(channel, "ExcitationWavelength"))
+
+
+def _detection_range(detector, channel):
+    """Return a channel's detection band as "start-end" in nm, or "N/A".
+    The channel records it too, for files with no acquisition block detector."""
     if detector is None:
-        return "N/A"
+        return _text(channel, "DetectionWavelength/Ranges")
     # An Airyscan detector records the name of its filter set instead.
     filter_set = _text(detector, "Filtersets/Filterset", default="")
     if detector.get("Name") == "Airyscan" and filter_set:
@@ -153,11 +163,13 @@ def extract_czi_metadata(file_path):
         "Acquisition Modes": [_text(channel, "AcquisitionMode") for channel in channels],
         "Channel Names": names,
         "Dye Names": [_text(channel, "Fluor") for channel in channels],
-        "Excitation Wavelengths": per_channel("ExcitationWavelength"),
+        "Excitation Wavelengths": [_excitation(channel) for channel in channels],
         "Emission Wavelengths": per_channel("EmissionWavelength"),
-        "Emission Wavelength Range (nm)": [_detection_range(d) for d in channel_detectors],
+        "Emission Wavelength Range (nm)": [_detection_range(d, c) for d, c in zip(channel_detectors, channels)],
         "Pinhole Sizes (Airy Units)": per_channel("PinholeSizeAiry"),
-        "Pinhole Diameters (um)": [_number(_text(d, "PinholeDiameter"), 1e6) for d in channel_detectors],
+        "Pinhole Diameters (um)": [_number(_text(d, "PinholeDiameter"), 1e6) if d is not None
+                                   else _number(_text(c, "PinholeSize"))
+                                   for d, c in zip(channel_detectors, channels)],
         "AiryScan Virtual Pinhole Size (um)": [
             _number(_text(d, "AiryScanVirtualPinholeSize"), 1e6)
             if d is not None and d.get("Name") == "Airyscan" else "N/A"

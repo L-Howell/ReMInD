@@ -26,5 +26,7 @@ Thumbs.db
 *.nd2
 *.oir
 oir_xml_block_*.xml
+# except the committed test fixtures
+!tests/data/vendor_formats/**
 environment_backup.yml
 

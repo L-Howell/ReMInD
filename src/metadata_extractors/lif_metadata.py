@@ -80,8 +80,10 @@ def _las_x_settings(hardware):
         lasers = [line.get("LaserLine") for line in scan.findall("./AotfList/Aotf/LaserLineSetting")
                   if float(line.get("IntensityDev") or 0) > 0]
         lasers_by_scan.append(lasers)
-        ranges = {b.get("Channel"): (b.get("LeftWorld"), b.get("RightWorld"))
-                  for b in scan.findall("./Spectro/MultiBand")}
+        # A sequential scan block has no Spectro of its own; the bands of
+        # all its detectors are in the definition's.
+        multibands = scan.findall("./Spectro/MultiBand") or definition.findall("./Spectro/MultiBand")
+        ranges = {b.get("Channel"): (b.get("LeftWorld"), b.get("RightWorld")) for b in multibands}
         for detector in scan.findall("./DetectorList/Detector"):
             if detector.get("IsActive") != "1":
                 continue
