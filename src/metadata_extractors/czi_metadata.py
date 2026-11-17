@@ -1,83 +1,14 @@
 """
-Extract metadata from Zeiss CZI files using the czifile library.
-Returns key image, instrument, and channel metadata as a dictionary using the
-same vocabulary as the other ReMInD extractors.
+Read the metadata of Zeiss CZI files.
+
+remind.py calls extract_czi_metadata when the user loads a .czi file. The
+result uses the same keys as the other extractors, so field_mapping can fill
+the form from it. The file is read with the czifile library.
 """
 
 import os
 
 from czifile import CziFile
-
-
-def _text(element, path, default="N/A"):
-    """Return the text of the element at path below element, or default if
-    there is no such element or it is empty."""
-    found = element.findtext(path) if element is not None else None
-    return found.strip() if found and found.strip() else default
-
-
-def _number(value, scale=1, decimals=3):
-    """Return value times scale as a rounded number, or "N/A" if it is not
-    a number."""
-    try:
-        return round(float(value) * scale, decimals)
-    except (TypeError, ValueError):
-        return "N/A"
-
-
-def _count(value):
-    """Return a dimension size as an int. CZI leaves a dimension out when it
-    has a single plane, time point, scene or tile, so a missing size is 1."""
-    try:
-        return int(float(value))
-    except (TypeError, ValueError):
-        return 1
-
-
-def _system_name(information, metadata):
-    """Return the microscope system name, falling back to the name of the
-    microscope device in the hardware configuration."""
-    name = _text(information, "Instrument/Microscopes/Microscope/System", default="")
-    if name:
-        return name
-    named = [d for d in metadata.findall("HardwareSetting/Configuration/Device") if d.get("Name")]
-    microscope = [d for d in named if d.get("Id") == "Microscope"]
-    return (microscope or named)[0].get("Name") if named else "N/A"
-
-
-def _detector_for(channel_name, detectors):
-    """Return the detector that recorded a channel, or None if none matches.
-    Detector and channel names are not always identical (e.g. "ChA" and
-    "ChA-T1"), so one containing the other counts as a match."""
-    for detector in detectors:
-        name = _text(detector, "ImageChannelName", default="")
-        if name and (name in channel_name or channel_name in name):
-            return detector
-    return None
-
-
-def _excitation(channel):
-    """Return a channel's excitation wavelength in nm, or "N/A".
-
-    ExcitationWavelength is the dye's peak, so the laser line that lit the
-    channel is used instead when there is exactly one."""
-    lasers = [w.text for w in channel.findall("LightSourcesSettings/LightSourceSettings/Wavelength")]
-    return _number(lasers[0] if len(lasers) == 1 else _text(channel, "ExcitationWavelength"))
-
-
-def _detection_range(detector, channel):
-    """Return a channel's detection band as "start-end" in nm, or "N/A".
-    The channel records it too, for files with no acquisition block detector."""
-    if detector is None:
-        return _text(channel, "DetectionWavelength/Ranges")
-    # An Airyscan detector records the name of its filter set instead.
-    filter_set = _text(detector, "Filtersets/Filterset", default="")
-    if detector.get("Name") == "Airyscan" and filter_set:
-        return filter_set
-    band = "DetectorWavelengthRanges/DetectorWavelengthRange/"
-    start = _number(_text(detector, band + "WavelengthStart"), 1e9, 0)
-    end = _number(_text(detector, band + "WavelengthEnd"), 1e9, 0)
-    return f"{int(start)}-{int(end)}" if "N/A" not in (start, end) else "N/A"
 
 
 def extract_czi_metadata(file_path):
@@ -88,9 +19,9 @@ def extract_czi_metadata(file_path):
         file_path (str): path to the .czi file.
 
     Returns:
-        dict: the metadata. A value the file does not record is "N/A". The
-        per-channel values are lists with one entry per channel, in file
-        order; they are empty lists if the file describes no channels.
+        dict: the metadata. A value the file does not record is "N/A".
+        Per-channel values are lists with one entry per channel, in file
+        order. They are empty lists if the file describes no channels.
         Lengths are in micrometres and wavelengths in nanometres. "Size Z",
         "Size T", "Size S" and "Size M" are 1 when the file has no such
         dimension.
@@ -111,7 +42,8 @@ def extract_czi_metadata(file_path):
                  for detector in block.findall("MultiTrackSetup/TrackSetup/Detectors/Detector")]
 
     # Pixel sizes are stored in metres. A laser scanning system records them
-    # with the acquisition settings; every file has them under Scaling.
+    # with the acquisition settings. Every file has them under Scaling, which
+    # is used when the acquisition settings do not have them.
     scaling = {d.get("Id"): _text(d, "Value") for d in metadata.findall("Scaling/Items/Distance")}
     sizes = {axis: _count(_text(image, f"Size{axis}")) for axis in "XYZTSM"}
     pixel_size, image_size = {}, {}
@@ -177,6 +109,74 @@ def extract_czi_metadata(file_path):
         "Zoom": per_channel("LaserScanInfo/ZoomX"),
         "Total Magnification": per_channel("CustomAttributes/MM.TotalMagnification"),
     }
+
+
+def _system_name(information, metadata):
+    """Return the microscope's system name, or else its device name in the hardware settings."""
+    name = _text(information, "Instrument/Microscopes/Microscope/System", default="")
+    if name:
+        return name
+    named = [d for d in metadata.findall("HardwareSetting/Configuration/Device") if d.get("Name")]
+    microscope = [d for d in named if d.get("Id") == "Microscope"]
+    return (microscope or named)[0].get("Name") if named else "N/A"
+
+
+def _detector_for(channel_name, detectors):
+    """Return the detector that recorded a channel, or None if none matches."""
+    for detector in detectors:
+        name = _text(detector, "ImageChannelName", default="")
+        # The names can differ, as in "ChA" and "ChA-T1", so one containing
+        # the other counts as a match.
+        if name and (name in channel_name or channel_name in name):
+            return detector
+    return None
+
+
+def _excitation(channel):
+    """Return a channel's excitation wavelength in nm, or "N/A"."""
+    # ExcitationWavelength is the dye's peak, so the laser line that lit the
+    # channel is used instead when there is exactly one.
+    lasers = [w.text for w in channel.findall("LightSourcesSettings/LightSourceSettings/Wavelength")]
+    return _number(lasers[0] if len(lasers) == 1 else _text(channel, "ExcitationWavelength"))
+
+
+def _detection_range(detector, channel):
+    """Return a channel's detection band as "start-end" in nm, or "N/A"."""
+    # Some files have no detectors in the acquisition block, but each
+    # channel still records its band.
+    if detector is None:
+        return _text(channel, "DetectionWavelength/Ranges")
+    # An Airyscan detector records the name of its filter set instead of a band.
+    filter_set = _text(detector, "Filtersets/Filterset", default="")
+    if detector.get("Name") == "Airyscan" and filter_set:
+        return filter_set
+    band = "DetectorWavelengthRanges/DetectorWavelengthRange/"
+    start = _number(_text(detector, band + "WavelengthStart"), 1e9, 0)
+    end = _number(_text(detector, band + "WavelengthEnd"), 1e9, 0)
+    return f"{int(start)}-{int(end)}" if "N/A" not in (start, end) else "N/A"
+
+
+def _text(element, path, default="N/A"):
+    """Return the text of the element at path below element, or default if it is missing or empty."""
+    found = element.findtext(path) if element is not None else None
+    return found.strip() if found and found.strip() else default
+
+
+def _number(value, scale=1, decimals=3):
+    """Return value times scale, rounded, or "N/A" if it is not a number."""
+    try:
+        return round(float(value) * scale, decimals)
+    except (TypeError, ValueError):
+        return "N/A"
+
+
+def _count(value):
+    """Return a dimension size as an int, or 1 if it is missing."""
+    # CZI leaves out a dimension that has a single plane, time point, scene or tile.
+    try:
+        return int(float(value))
+    except (TypeError, ValueError):
+        return 1
 
 
 if __name__ == "__main__":
