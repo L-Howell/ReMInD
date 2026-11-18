@@ -133,17 +133,34 @@ class FormTest(unittest.TestCase):
         self.assertEqual(self.field("Microscope name"), "Confocal 5")
         self.assertEqual(self.field("Experiment name"), "")
 
-    def test_image_file_does_not_replace_the_template_microscope_name(self):
-        self.app.load_image_file("image.czi")
-        self.assertEqual(self.field("Microscope name"), "LSM 980")
+    def test_an_image_file_that_cannot_be_read_leaves_the_form_alone(self):
+        self.app.set_field("Experiment name", "Not saved yet")
+        before = self.app.readme_text()
 
-        self.app.load_template(self.write_file("Confocal5_ReadME_template.txt",
-                                               "Microscope name: Confocal 5\n"))
-        self.app.load_image_file("image.czi")
+        def unreadable(path):
+            raise OSError("damaged file")
 
-        self.assertEqual(self.field("Microscope name"), "Confocal 5")
-        self.assertEqual(self.field("Objective"), "Plan-Apochromat 63x/1.4")
+        with mock.patch.dict(remind.IMAGE_READERS, {".czi": ("CZI", unreadable)}):
+            self.app.load_image_file("damaged.czi")
+        self.app.load_image_file("notes.docx")
 
+        self.assertEqual(self.app.readme_text(), before)
+
+    def test_text_outside_ascii_survives_saving_and_loading(self):
+        # Windows does not use UTF-8 by default, and cannot store "α" at all
+        # in its usual encoding.
+        path = os.path.join(self.folder.name, "ReadME.txt")
+        self.app.set_field("Antibody or probes", "anti-α-tubulin, Alexa Fluor 488")
+        self.app.set_field("Sample Information", "5 µm sections")
+        with mock.patch.object(remind, "filedialog") as dialog:
+            dialog.asksaveasfilename.return_value = path
+            self.app.generate_readme()
+        self.app.clear_form()
+
+        self.app.load_readme_file(path)
+
+        self.assertEqual(self.field("Antibody or probes"), "anti-α-tubulin, Alexa Fluor 488")
+        self.assertEqual(self.field("Sample Information"), "5 µm sections")
 
 if __name__ == "__main__":
     unittest.main()
