@@ -20,7 +20,7 @@ COMMON_METADATA = {
 }
 
 class FieldMappingTest(unittest.TestCase):
-    def test_missing_values_are_left_out(self):
+    def test_missing_metadata_not_copied_to_form(self):
         # A returned field overwrites what the user typed, so "no value" must
         # never come back as text such as "N/A".
         metadata = {
@@ -33,7 +33,7 @@ class FieldMappingTest(unittest.TestCase):
         }
         self.assertEqual(metadata_to_form_fields(metadata), {})
 
-    def test_channels_are_written_as_excitation_and_target(self):
+    def test_channel_info_lists_excitation_and_dye_per_channel(self):
         metadata = {
             "Channel Names": ["CH1", "CH2", "T PMT"],
             "Dye Names": ["DAPI", "N/A", "N/A"],
@@ -42,7 +42,7 @@ class FieldMappingTest(unittest.TestCase):
         self.assertEqual(metadata_to_form_fields(metadata),
                          {"Channel info": "405 (DAPI), 561 (CH2), T PMT"})
 
-    def test_images_with_different_settings_are_all_reported(self):
+    def test_combined_metadata_lists_values_that_differ_between_images(self):
         # A LIF project often holds an overview and the real images, taken
         # with different objectives. Neither may be dropped from the record.
         overview = {"Image Name": "Overview", "Objective Model": "10x", "Size Z": 1, "System Name": "SP8"}

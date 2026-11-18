@@ -54,7 +54,7 @@ def extract(version, shape):
 
 
 class VendorFileTest(unittest.TestCase):
-    def test_form_fields(self):
+    def test_form_fields_from_vendor_files_match_expected(self):
         for version, expected in VERSIONS.items():
             if not installed(version.split("/")[0]):
                 continue
@@ -66,13 +66,13 @@ class VendorFileTest(unittest.TestCase):
                     self.assertEqual(fields["Time series"], time_series)
 
     @unittest.skipUnless(installed("CZI"), "czifile is not installed")
-    def test_czi_channel_settings_without_acquisition_block_detectors(self):
+    def test_czi_band_and_pinhole_read_from_channel_when_no_detector(self):
         metadata = extract("CZI/zen-2.6.76", "2d")
         self.assertEqual(metadata["Emission Wavelength Range (nm)"], ["510-700", "400-510"])
         self.assertEqual(metadata["Pinhole Diameters (um)"], [159.99, 159.99])
 
     @unittest.skipUnless(installed("LIF"), "liffile is not installed")
-    def test_lif_detection_bands_in_a_sequential_scan(self):
+    def test_lif_sequential_scan_bands_read_per_channel(self):
         self.assertEqual(extract("LIF/lasx-4.9.2.31016", "2d")["Emission Wavelength Range (nm)"],
                          ["430-469", "506-575"])
 

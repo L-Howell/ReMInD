@@ -17,7 +17,7 @@ IMAGE_METADATA = {"System Name": "LSM 980", "Objective Model": "Plan-Apochromat 
 
 
 class FormFieldsTest(unittest.TestCase):
-    def test_mappers_only_return_fields_the_form_has(self):
+    def test_field_mapping_labels_and_options_exist_in_form(self):
         # The form silently ignores labels it does not have, so a label that
         # drifts from the form's (e.g. "Z stack" for "Z-stack") would stop a
         # field being filled without any error.
@@ -61,7 +61,7 @@ class FormTest(unittest.TestCase):
     def field(self, label):
         return dict(self.app.field_values())[label]
 
-    def test_examples_in_empty_fields_are_not_saved(self):
+    def test_placeholder_text_not_saved(self):
         # An empty field displays an example such as "e.g. Confocal 5". It
         # is put there as text, so it must be kept out of what is saved.
         self.assertEqual({value for _, value in self.app.field_values()}, {""})
@@ -71,7 +71,7 @@ class FormTest(unittest.TestCase):
         self.app.set_field("Sample Carrier", "")
         self.assertEqual(self.field("Sample Carrier"), "")
 
-    def test_unsaved_changes_are_kept_unless_the_user_agrees_to_lose_them(self):
+    def test_unsaved_changes_discarded_only_after_confirmation(self):
         self.app.set_field("Experiment name", "Not saved yet")
 
         remind.messagebox.askyesno.return_value = False
@@ -86,7 +86,7 @@ class FormTest(unittest.TestCase):
         self.assertTrue(self.app.may_discard_changes())
         remind.messagebox.askyesno.assert_not_called()
 
-    def test_clear_form_removes_image_metadata_from_the_next_readme(self):
+    def test_clear_form_removes_image_metadata(self):
         self.app.load_image_file("first_experiment.czi")
         self.assertIn("LSM 980", self.app.readme_text())
 
@@ -95,7 +95,7 @@ class FormTest(unittest.TestCase):
         self.assertNotIn("LSM 980", self.app.readme_text())
         self.assertNotIn("Extracted Image Metadata", self.app.readme_text())
 
-    def test_loading_a_readme_replaces_the_whole_form(self):
+    def test_load_readme_replaces_all_form_content(self):
         # Anything left over from the experiment that was in the form would
         # be saved as part of the loaded one.
         self.app.load_image_file("first_experiment.czi")
@@ -108,14 +108,14 @@ class FormTest(unittest.TestCase):
                          {"Experiment name": "Second"})
         self.assertNotIn("Extracted Image Metadata", self.app.readme_text())
 
-    def test_a_file_that_is_not_a_readme_leaves_the_form_alone(self):
+    def test_load_non_readme_text_file_leaves_form_unchanged(self):
         self.app.set_field("Experiment name", "Not saved yet")
 
         self.app.load_readme_file(self.write_file("shopping.txt", "milk\neggs\n"))
 
         self.assertEqual(self.field("Experiment name"), "Not saved yet")
 
-    def test_clear_form_returns_to_the_template(self):
+    def test_clear_form_restores_template_values_not_template_metadata(self):
         path = self.write_file("Confocal5_ReadME_template.txt",
                                "Storage Location: \\\\server\\Confocal5\\\n"
                                "Microscope name: Confocal 5\n"
@@ -133,7 +133,7 @@ class FormTest(unittest.TestCase):
         self.assertEqual(self.field("Microscope name"), "Confocal 5")
         self.assertEqual(self.field("Experiment name"), "")
 
-    def test_an_image_file_that_cannot_be_read_leaves_the_form_alone(self):
+    def test_load_unreadable_or_unsupported_image_leaves_form_unchanged(self):
         self.app.set_field("Experiment name", "Not saved yet")
         before = self.app.readme_text()
 
@@ -146,7 +146,7 @@ class FormTest(unittest.TestCase):
 
         self.assertEqual(self.app.readme_text(), before)
 
-    def test_text_outside_ascii_survives_saving_and_loading(self):
+    def test_non_ascii_text_preserved_through_save_and_load(self):
         # Windows does not use UTF-8 by default, and cannot store "α" at all
         # in its usual encoding.
         path = os.path.join(self.folder.name, "ReadME.txt")

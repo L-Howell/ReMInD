@@ -53,7 +53,7 @@ PROJECT = """
 
 
 class LifTest(unittest.TestCase):
-    def test_each_image_reports_its_own_settings(self):
+    def test_each_image_read_from_its_own_hardware_settings(self):
         # Each image's values must come from its own settings, not from the
         # first image in the file or from all of them.
         overview, stack = [_image_metadata(e) for e in ET.fromstring(PROJECT).iter("Element")

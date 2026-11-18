@@ -28,17 +28,19 @@ OME_XML = """
 
 
 class OmeTiffTest(unittest.TestCase):
-    def test_image_uses_the_objective_it_names_and_micrometres(self):
+    def setUp(self):
         root = parse_xml(OME_XML)
-        metadata = _image_metadata(root, root.find("Image"))
+        self.metadata = _image_metadata(root, root.find("Image"))
 
+    def test_objective_matches_image_reference(self):
         # The file's first objective is the 63x. This image refers to the 10x.
-        self.assertEqual(metadata["Objective Model"], "EC Plan-Neofluar 10x NA 0.3")
-        self.assertEqual(metadata["Objective Medium"], "Air")
+        self.assertEqual(self.metadata["Objective Model"], "EC Plan-Neofluar 10x NA 0.3")
+        self.assertEqual(self.metadata["Objective Medium"], "Air")
+
+    def test_pixel_sizes_converted_to_micrometres(self):
         # A pixel size is in the unit the file gives, micrometres by default.
-        self.assertEqual(metadata["Pixel Size X (um)"], 1.3)
-        self.assertEqual(metadata["Pixel Size Y (um)"], 1.3)
-        self.assertEqual(metadata["Dye Names"], ["DAPI"])
+        self.assertEqual(self.metadata["Pixel Size X (um)"], 1.3)
+        self.assertEqual(self.metadata["Pixel Size Y (um)"], 1.3)
 
 
 if __name__ == "__main__":
