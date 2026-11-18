@@ -31,7 +31,7 @@ imaged. ReMInD puts both in one record. Load an image file and it fills in what 
 already contains, such as the objective, the channels and the acquisition date. You add
 the rest: sample, labels, fixation, storage location and notes.
 
-The result is a plain-text file that anyone can read without needing ReMInD:
+The result is a plain-text file that anyone can easily read without needing ReMInD:
 
 ```text
 Experiment name: Brain section tiling, cohort 3
@@ -49,7 +49,7 @@ ctrl -> Vehicle control
 B -> 10 uM Drug Y
 ```
 
-The same content can be exported as JSON for other software.
+The same content can be exported as JSON for reading by other software.
 
 ## Getting it
 
@@ -81,13 +81,13 @@ that differ between its images are all listed.
 
 > [!NOTE]
 > The amount and type of metadata a file can supply depends on the format, microscope,
-> and controlling software version. Always check the highlighted fields. The form also
+> and controlling software version. Always check the highlighted fields to confirm they are accurate. The form also
 > works without an image file.
 
 ## For facilities
 
 > [!TIP]
-> Put a template next to `ReMInD.exe` on an acquisition PC and every user starts with
+> Put a template next to `ReMInD.exe` on an acquisition PC and every user starts with, for example,
 > the same storage location and instrument name pre-filled.
 
 Copy [`templates/example_ReadME_template.txt`](templates/example_ReadME_template.txt),
@@ -113,7 +113,7 @@ Every pull request is also tested and built on Windows by CI, and the resulting
 release.
 
 The [developer guide](docs/developer-guide.md) explains the code layout, how to add a
-file format, how to change the colours, and the release steps.
+file format, how to change the theme colours, and the release steps.
 
 </details>
 
